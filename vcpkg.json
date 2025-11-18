@@ -1,0 +1,10 @@
+{
+  "name": "vrindaai",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "qt6-base",
+    "qt6-tools",
+    "nlohmann-json",
+    "sqlite3"
+  ]
+}

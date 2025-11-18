@@ -1,0 +1,507 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1600</width>
+    <height>900</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="font">
+   <font>
+    <family>Times New Roman</family>
+    <pointsize>9</pointsize>
+   </font>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="acceptDrops">
+    <bool>false</bool>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="MainConsole">
+       <attribute name="title">
+        <string>MainConsole</string>
+       </attribute>
+       <widget class="QCheckBox" name="AutoScrollCheckBox">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>800</y>
+          <width>200</width>
+          <height>30</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>ToggleScroll</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="pdfExportButton">
+        <property name="geometry">
+         <rect>
+          <x>590</x>
+          <y>800</y>
+          <width>230</width>
+          <height>30</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Export Tasks to PDF</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="setUnrealPathButton">
+        <property name="geometry">
+         <rect>
+          <x>880</x>
+          <y>800</y>
+          <width>250</width>
+          <height>30</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>setUnrealPathButton</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="ExportButton">
+        <property name="geometry">
+         <rect>
+          <x>260</x>
+          <y>800</y>
+          <width>220</width>
+          <height>30</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Export Tasks to CSV</string>
+        </property>
+       </widget>
+       <widget class="QSplitter" name="splitter_34">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>1350</width>
+          <height>590</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="AssistantChatArea"/>
+        <widget class="QTextEdit" name="PlannerChatArea"/>
+        <widget class="QTextEdit" name="ManagerChatArea"/>
+       </widget>
+       <widget class="QSplitter" name="splitter_36">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>600</y>
+          <width>1350</width>
+          <height>150</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="AssistantTextEdit"/>
+        <widget class="QTextEdit" name="PlannerTextEdit"/>
+        <widget class="QTextEdit" name="ManagerTextEdit"/>
+       </widget>
+       <widget class="QPushButton" name="AssistantSendButton">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>750</y>
+          <width>450</width>
+          <height>30</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>AssistantSendButton</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="PlannerSendButton">
+        <property name="geometry">
+         <rect>
+          <x>460</x>
+          <y>750</y>
+          <width>450</width>
+          <height>30</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>PlannerSendButton</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="ManagerSendButton">
+        <property name="geometry">
+         <rect>
+          <x>910</x>
+          <y>750</y>
+          <width>450</width>
+          <height>30</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>ManagerSendButton</string>
+        </property>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="CodeBuild">
+       <attribute name="title">
+        <string>Code/Build</string>
+       </attribute>
+       <widget class="QSplitter" name="splitter_7">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>1350</width>
+          <height>630</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="CoderChatArea"/>
+        <widget class="QTextEdit" name="IntegratorChatArea"/>
+        <widget class="QTextEdit" name="ScripterChatArea"/>
+       </widget>
+       <widget class="QSplitter" name="splitter_8">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>820</y>
+          <width>1370</width>
+          <height>22</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QPushButton" name="CoderSendButton">
+         <property name="text">
+          <string>CoderSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="IntegratorSendButton">
+         <property name="text">
+          <string>IntegratorSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="ScripterSendButton">
+         <property name="text">
+          <string>ScripterSendButton</string>
+         </property>
+        </widget>
+       </widget>
+       <widget class="QSplitter" name="splitter_9">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>650</y>
+          <width>1350</width>
+          <height>170</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="CoderTextEdit"/>
+        <widget class="QTextEdit" name="IntegratorTextEdit"/>
+        <widget class="QTextEdit" name="ScripterTextEdit"/>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="AssetPipeline">
+       <attribute name="title">
+        <string>AssetPipeline</string>
+       </attribute>
+       <widget class="QSplitter" name="splitter_2">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>1350</width>
+          <height>630</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="ModelingChatArea"/>
+        <widget class="QTextEdit" name="TexturingChatArea"/>
+        <widget class="QTextEdit" name="AnimationChatArea"/>
+       </widget>
+       <widget class="QSplitter" name="splitter_5">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>650</y>
+          <width>1350</width>
+          <height>170</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="ModelingTextEdit"/>
+        <widget class="QTextEdit" name="TexturingTextEdit"/>
+        <widget class="QTextEdit" name="AnimationTextEdit"/>
+       </widget>
+       <widget class="QSplitter" name="splitter_6">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>820</y>
+          <width>1370</width>
+          <height>22</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QPushButton" name="ModelingSendButton">
+         <property name="text">
+          <string>ModelingSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="TexturingSendButton">
+         <property name="text">
+          <string>TexturingSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="AnimationSendButton">
+         <property name="text">
+          <string>AnimationSendButton</string>
+         </property>
+        </widget>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="Correction">
+       <attribute name="title">
+        <string>QA/Correction</string>
+       </attribute>
+       <widget class="QSplitter" name="splitter_13">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>1350</width>
+          <height>630</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="CorrectorChatArea"/>
+        <widget class="QTextEdit" name="ValidatorChatArea"/>
+        <widget class="QTextEdit" name="CompilerChatArea"/>
+       </widget>
+       <widget class="QSplitter" name="splitter_14">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>820</y>
+          <width>1370</width>
+          <height>22</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QPushButton" name="CorrectorSendButton">
+         <property name="text">
+          <string>CorrectorSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="ValidatorSendButton">
+         <property name="text">
+          <string>ValidatorSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="CompilerSendButton">
+         <property name="text">
+          <string>CompilerSendButton</string>
+         </property>
+        </widget>
+       </widget>
+       <widget class="QSplitter" name="splitter_15">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>650</y>
+          <width>1350</width>
+          <height>170</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="CorrectorTextEdit"/>
+        <widget class="QTextEdit" name="ValidatorTextEdit"/>
+        <widget class="QTextEdit" name="CompilerTextEdit"/>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="Engines">
+       <attribute name="title">
+        <string>Engines/Apps</string>
+       </attribute>
+       <widget class="QSplitter" name="splitter_16">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>1350</width>
+          <height>630</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="DesignerChatArea"/>
+        <widget class="QTextEdit" name="EngineChatArea"/>
+        <widget class="QTextEdit" name="EditingChatArea"/>
+       </widget>
+       <widget class="QSplitter" name="splitter_17">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>820</y>
+          <width>1370</width>
+          <height>22</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QPushButton" name="DesignerSendButton">
+         <property name="text">
+          <string>DesignerSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="EngineSendButton">
+         <property name="text">
+          <string>EngineSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="EditingSendButton">
+         <property name="text">
+          <string>EditingSendButton</string>
+         </property>
+        </widget>
+       </widget>
+       <widget class="QSplitter" name="splitter_18">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>650</y>
+          <width>1350</width>
+          <height>170</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="DesignerTextEdit"/>
+        <widget class="QTextEdit" name="EngineTextEdit"/>
+        <widget class="QTextEdit" name="EditingTextEdit"/>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="Research_Memory">
+       <attribute name="title">
+        <string>Research/Memory</string>
+       </attribute>
+       <widget class="QSplitter" name="splitter_10">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>1350</width>
+          <height>630</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="VrindaChatArea"/>
+        <widget class="QTextEdit" name="ResearcherChatArea"/>
+        <widget class="QTextEdit" name="ArchitectChatArea"/>
+       </widget>
+       <widget class="QSplitter" name="splitter_11">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>820</y>
+          <width>1370</width>
+          <height>22</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QPushButton" name="VrindaSendButton">
+         <property name="text">
+          <string>VrindaSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="ResearcherSendButton">
+         <property name="text">
+          <string>ResearcherSendButton</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="ArchitectSendButton">
+         <property name="text">
+          <string>ArchitectSendButton</string>
+         </property>
+        </widget>
+       </widget>
+       <widget class="QSplitter" name="splitter_12">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>650</y>
+          <width>1350</width>
+          <height>170</height>
+         </rect>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Orientation::Horizontal</enum>
+        </property>
+        <widget class="QTextEdit" name="VrindaTextEdit"/>
+        <widget class="QTextEdit" name="ResearcherTextEdit"/>
+        <widget class="QTextEdit" name="ArchitectTextEdit"/>
+       </widget>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
