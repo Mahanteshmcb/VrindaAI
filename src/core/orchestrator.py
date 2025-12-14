@@ -83,7 +83,9 @@ class Orchestrator:
         Returns:
             Execution result with status and output paths
         """
-        self.logger.info(f"Starting workflow execution: {task_spec.get('description')[:50]}...")
+        # FIX: Safely handle description to avoid 'NoneType' is not subscriptable
+        description = str(task_spec.get('description', ''))
+        self.logger.info(f"Starting workflow execution: {description[:50]}...")
         
         workflow_id = self._generate_workflow_id()
         
@@ -101,8 +103,11 @@ class Orchestrator:
             # Stage 1: Prepare environment
             self.logger.info("Stage 1: Preparing environment")
             prep_result = self._prepare_environment(task_spec)
-            if not prep_result["success"]:
-                raise Exception(f"Environment preparation failed: {prep_result['error']}")
+            
+            # FIX: Ensure prep_result is valid and access safely with .get()
+            if not prep_result or not prep_result.get("success"):
+                error_msg = prep_result.get('error') if prep_result else "Unknown error"
+                raise Exception(f"Environment preparation failed: {error_msg}")
             
             result["stages"].append({
                 "name": "prepare",
@@ -170,7 +175,8 @@ class Orchestrator:
     def _prepare_environment(self, task_spec: Dict[str, Any]) -> Dict[str, Any]:
         """Prepare environment for execution"""
         try:
-            engine = task_spec.get("engine")
+            # FIX: Default to empty string or handle None safely
+            engine = str(task_spec.get("engine", ""))
             
             # Check if engine is available
             engine_path = self._find_engine_executable(engine)
@@ -181,7 +187,9 @@ class Orchestrator:
                 }
             
             # Create output directories
-            output_dir = self.output_dir / task_spec.get("description", "unnamed")[:30]
+            # FIX: Safely handle description for folder naming
+            desc = str(task_spec.get("description", "unnamed"))
+            output_dir = self.output_dir / desc[:30]
             output_dir.mkdir(parents=True, exist_ok=True)
             
             # Create temp directory

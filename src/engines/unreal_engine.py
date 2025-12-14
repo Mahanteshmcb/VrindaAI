@@ -103,7 +103,7 @@ class UnrealEngine:
         project_path: str,
         scene_name: str,
         description: str,
-        assets: List[str] = None
+        assets: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Create new level/scene in project
@@ -137,8 +137,8 @@ class UnrealEngine:
         project_path: str,
         actor_name: str,
         actor_class: str,
-        location: List[float] = None,
-        rotation: List[float] = None
+        location: Optional[List[float]] = None,
+        rotation: Optional[List[float]] = None
     ) -> Dict[str, Any]:
         """Add actor to scene"""
         location = location or [0, 0, 0]

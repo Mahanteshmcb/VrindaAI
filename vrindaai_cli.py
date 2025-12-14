@@ -9,7 +9,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -157,7 +157,7 @@ Examples:
         input_processor = InputProcessor()
         
         # Determine input
-        input_data = None
+        input_data: Union[str, Path, Dict] = ""
         input_type = None
         
         if args.prompt:
@@ -170,7 +170,7 @@ Examples:
             input_data = args.scene
             input_type = InputType.FILE_PATH
         elif args.file:
-            input_data = args.file
+            input_data = Path(args.file)
             # Auto-detect
         
         # Process input

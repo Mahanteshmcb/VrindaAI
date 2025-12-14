@@ -403,7 +403,8 @@ QJsonObject CinematicProductionWorkflow::generateFinalExportJob(const CinematicS
     QJsonObject output;
     output["path"] = "./output/final";
     output["format"] = "mp4";
-    output["filename"] = spec.title.replace(" ", "_") + ".mp4";
+    QString safeTitle = spec.title; // Create a copy
+    output["filename"] = safeTitle.replace(" ", "_") + ".mp4";
     job["output"] = output;
     
     return job;

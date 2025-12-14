@@ -9,7 +9,7 @@ import re
 import yaml
 import xml.etree.ElementTree as ET
 from enum import Enum
-from typing import Union, Dict, List, Any, Optional, Tuple
+from typing import Union, Dict, List, Any, Optional, Tuple, cast
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import logging
@@ -37,7 +37,7 @@ class OutputType(Enum):
     """Types of output to generate"""
     CINEMATIC_VIDEO = "cinematic_video"
     GAME = "game"
-    3D_SCENE = "3d_scene"
+    SCENE_3D = "3d_scene"  # Renamed from 3D_SCENE to SCENE_3D
     ANIMATION = "animation"
     RENDERED_SEQUENCE = "rendered_sequence"
 
@@ -66,9 +66,9 @@ class JsonConfig:
     duration: int = 30
     resolution: str = "1080p"
     fps: int = 24
-    assets: List[str] = None
-    templates: List[str] = None
-    parameters: Dict[str, Any] = None
+    assets: Optional[List[str]] = None
+    templates: Optional[List[str]] = None
+    parameters: Optional[Dict[str, Any]] = None
     output_path: Optional[str] = None
     quality: str = "high"  # low, medium, high, ultra
 
@@ -95,8 +95,8 @@ class SceneDescription:
     objects: List[SceneObject]
     camera: Dict[str, Any]
     lighting: Dict[str, Any]
-    rendering: Dict[str, Any] = None
-    effects: List[Dict[str, Any]] = None
+    rendering: Optional[Dict[str, Any]] = None
+    effects: Optional[List[Dict[str, Any]]] = None
     audio: Optional[Dict[str, Any]] = None
 
 
@@ -139,13 +139,21 @@ class InputProcessor:
         
         # Route to appropriate processor
         if input_type == InputType.TEXT_PROMPT:
-            return self._process_text_prompt(input_data)
+            return self._process_text_prompt(str(input_data))
+            
         elif input_type == InputType.JSON_CONFIG:
-            return self._process_json_config(input_data)
+            # Ensure it is a Dict before passing
+            config_data = json.loads(str(input_data)) if isinstance(input_data, str) else input_data
+            return self._process_json_config(cast(Dict[str, Any], config_data))
+            
         elif input_type == InputType.SCENE_DESCRIPTION:
-            return self._process_scene_description(input_data)
+            # Ensure it is a Dict before passing
+            scene_data = json.loads(str(input_data)) if isinstance(input_data, str) else input_data
+            return self._process_scene_description(cast(Dict[str, Any], scene_data))
+            
         elif input_type == InputType.FILE_PATH:
-            return self._process_file_path(input_data)
+            return self._process_file_path(Path(str(input_data)))
+            
         else:
             raise ValueError(f"Unknown input type: {input_type}")
     
@@ -211,30 +219,29 @@ class InputProcessor:
         """Process JSON configuration"""
         self.logger.info("Processing JSON configuration")
         
-        if isinstance(config, str):
-            config = json.loads(config)
+        config_dict: Dict[str, Any] = json.loads(config) if isinstance(config, str) else config
         
         # Validate required fields
         required = ["type", "engine", "description"]
         for field in required:
-            if field not in config:
+            if field not in config_dict:
                 raise ValueError(f"Missing required field: {field}")
         
         # Normalize the config
         normalized = {
             "input_type": "json_config",
-            "type": config.get("type"),
-            "engine": config.get("engine"),
-            "description": config.get("description"),
-            "style": config.get("style", "realistic"),
-            "duration": config.get("duration", 30),
-            "resolution": config.get("resolution", "1080p"),
-            "fps": config.get("fps", 24),
-            "quality": config.get("quality", "high"),
-            "assets": config.get("assets", []),
-            "templates": config.get("templates", []),
-            "parameters": config.get("parameters", {}),
-            "output_path": config.get("output_path"),
+            "type": config_dict.get("type"),
+            "engine": config_dict.get("engine"),
+            "description": config_dict.get("description"),
+            "style": config_dict.get("style", "realistic"),
+            "duration": config_dict.get("duration", 30),
+            "resolution": config_dict.get("resolution", "1080p"),
+            "fps": config_dict.get("fps", 24),
+            "quality": config_dict.get("quality", "high"),
+            "assets": config_dict.get("assets", []),
+            "templates": config_dict.get("templates", []),
+            "parameters": config_dict.get("parameters", {}),
+            "output_path": config_dict.get("output_path"),
         }
         
         return normalized
@@ -243,30 +250,29 @@ class InputProcessor:
         """Process detailed scene description"""
         self.logger.info("Processing scene description")
         
-        if isinstance(scene, str):
-            scene = json.loads(scene)
+        scene_dict: Dict[str, Any] = json.loads(scene) if isinstance(scene, str) else scene
         
         # Validate required fields
         required = ["name", "engine", "objects", "environment"]
         for field in required:
-            if field not in scene:
+            if field not in scene_dict:
                 raise ValueError(f"Missing required field: {field}")
         
         # Convert to normalized spec
         normalized = {
             "input_type": "scene_description",
             "type": "3d_scene",
-            "name": scene.get("name"),
-            "engine": scene.get("engine"),
-            "description": f"Scene: {scene.get('name')}",
-            "environment": scene.get("environment"),
-            "objects": scene.get("objects", []),
-            "camera": scene.get("camera", {}),
-            "lighting": scene.get("lighting", {}),
-            "rendering": scene.get("rendering", {}),
-            "effects": scene.get("effects", []),
-            "audio": scene.get("audio"),
-            "parameters": scene.get("parameters", {}),
+            "name": scene_dict.get("name"),
+            "engine": scene_dict.get("engine"),
+            "description": f"Scene: {scene_dict.get('name')}",
+            "environment": scene_dict.get("environment"),
+            "objects": scene_dict.get("objects", []),
+            "camera": scene_dict.get("camera", {}),
+            "lighting": scene_dict.get("lighting", {}),
+            "rendering": scene_dict.get("rendering", {}),
+            "effects": scene_dict.get("effects", []),
+            "audio": scene_dict.get("audio"),
+            "parameters": scene_dict.get("parameters", {}),
         }
         
         return normalized
@@ -305,7 +311,7 @@ class InputProcessor:
         elif "animation" in text_lower:
             return OutputType.ANIMATION
         elif "scene" in text_lower:
-            return OutputType.3D_SCENE
+            return OutputType.SCENE_3D  # FIX: Updated to valid Enum
         elif "video" in text_lower or "movie" in text_lower or "cinematic" in text_lower:
             return OutputType.CINEMATIC_VIDEO
         else:
@@ -345,7 +351,8 @@ class InputProcessor:
     def _enhance_with_llm(self, prompt: str, base_spec: Dict) -> Dict[str, Any]:
         """Enhance task specification using LLM"""
         try:
-            if hasattr(self.llm_connector, 'analyze_prompt'):
+            # FIX: Check if self.llm_connector is not None explicitly
+            if self.llm_connector and hasattr(self.llm_connector, 'analyze_prompt'):
                 enhanced = self.llm_connector.analyze_prompt(prompt)
                 self.logger.info("LLM analysis completed")
                 return enhanced

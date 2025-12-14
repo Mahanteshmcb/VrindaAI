@@ -6,7 +6,7 @@ Automates Blender 3D rendering with master templates and LLM integration
 import subprocess
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple, cast
 from pathlib import Path
 import tempfile
 
@@ -67,7 +67,9 @@ class BlenderEngine:
         Returns:
             Render result with output paths and metadata
         """
-        self.logger.info(f"Starting Blender render: {spec.get('description')[:50]}...")
+        # FIX: Ensure description is a string and not None before slicing
+        description = str(spec.get('description', ''))
+        self.logger.info(f"Starting Blender render: {description[:50]}...")
         
         try:
             # Generate Python script for Blender
