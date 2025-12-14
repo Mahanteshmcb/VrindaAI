@@ -1,0 +1,263 @@
+{
+  "job_id": "JOB_BLENDER_PROFESSIONAL_RENDER_001",
+  "timestamp": "2025-12-14T00:00:00Z",
+  "header": {
+    "project_name": "ProfessionalCinematicProduction",
+    "scene_name": "MainCharacterCinematic",
+    "description": "Professional photorealistic character cinematic render with advanced materials and lighting",
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fps": 24,
+    "frame_range": {
+      "start": 1,
+      "end": 240
+    }
+  },
+  "engine": "blender",
+  "scene_setup": {
+    "clear_default_scene": true,
+    "import_assets": [
+      {
+        "name": "MainCharacter",
+        "path": "assets/characters/hero_character.fbx",
+        "format": "fbx"
+      },
+      {
+        "name": "EnvironmentProp",
+        "path": "assets/environments/future_cityscape.blend",
+        "format": "blend"
+      }
+    ]
+  },
+  "assets": {
+    "characters": [
+      {
+        "id": "char_hero",
+        "name": "HeroCharacter",
+        "path": "builtin",
+        "format": "blend"
+      }
+    ],
+    "environments": [
+      {
+        "id": "env_futuristic_city",
+        "name": "FuturisticCity",
+        "path": "builtin",
+        "format": "blend"
+      }
+    ],
+    "props": [
+      {
+        "id": "prop_drone",
+        "name": "DroneProp",
+        "path": "builtin",
+        "format": "blend"
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "create_environment",
+      "target": "Scene",
+      "parameters": {
+        "type": "futuristic",
+        "scale": 150,
+        "complexity": "high"
+      }
+    },
+    {
+      "type": "setup_camera",
+      "target": "Camera",
+      "parameters": {
+        "position": [80, 50, 100],
+        "rotation": [-35, 45, 0],
+        "focal_length": 35,
+        "sensor_width": 36,
+        "dof": {
+          "enabled": true,
+          "focus_distance": 150,
+          "aperture": 2.0
+        },
+        "keyframes": [
+          {
+            "frame": 1,
+            "position": [80, 50, 100],
+            "rotation": [-35, 45, 0]
+          },
+          {
+            "frame": 120,
+            "position": [50, 70, 120],
+            "rotation": [-30, 90, 0]
+          },
+          {
+            "frame": 240,
+            "position": [20, 60, 80],
+            "rotation": [-25, 180, 0]
+          }
+        ]
+      }
+    },
+    {
+      "type": "setup_lighting",
+      "target": "Lights",
+      "parameters": {
+        "ambient": 0.3,
+        "use_hdri": true,
+        "hdri_path": "assets/hdri/modern_studio_hdri.exr",
+        "hdri_rotation": 45
+      }
+    },
+    {
+      "type": "add_material",
+      "target": "MainCharacter",
+      "parameters": {
+        "material_type": "principled_bsdf",
+        "base_color": [0.8, 0.8, 0.8],
+        "metallic": 0.2,
+        "roughness": 0.4,
+        "subsurface": 0.1
+      }
+    },
+    {
+      "type": "add_animation",
+      "target": "MainCharacter",
+      "parameters": {
+        "animation_file": "assets/animations/hero_idle.blend",
+        "animation_name": "IdleAnimation",
+        "start_frame": 1,
+        "end_frame": 240
+      }
+    },
+    {
+      "type": "render",
+      "target": "Camera",
+      "parameters": {
+        "start_frame": 1,
+        "end_frame": 240,
+        "output_path": "./output/blender_renders/professional_####.exr",
+        "engine": "cycles",
+        "samples": 256,
+        "use_gpu": true,
+        "gpu_type": "cuda",
+        "denoising": "optix",
+        "denoising_radius": 8,
+        "motion_blur": true,
+        "motion_blur_samples": 16
+      }
+    }
+  ],
+  "lighting": {
+    "ambient_strength": 0.3,
+    "use_hdri": true,
+    "hdri_intensity": 1.2,
+    "lights": [
+      {
+        "name": "KeyLight",
+        "type": "sun",
+        "intensity": 2.5,
+        "position": [150, 150, 200],
+        "rotation": [-45, 45, 0],
+        "shadow_softness": 5.0,
+        "color": [1.0, 0.98, 0.95]
+      },
+      {
+        "name": "FillLight",
+        "type": "area",
+        "intensity": 1.2,
+        "position": [-100, 80, 120],
+        "size": 80,
+        "color": [0.7, 0.8, 1.0]
+      },
+      {
+        "name": "RimLight",
+        "type": "area",
+        "intensity": 1.8,
+        "position": [0, -150, 80],
+        "size": 100,
+        "color": [0.9, 1.0, 1.0]
+      },
+      {
+        "name": "BackLight",
+        "type": "spot",
+        "intensity": 1.5,
+        "position": [0, 200, 50],
+        "angle": 45,
+        "color": [1.0, 0.9, 0.8]
+      }
+    ]
+  },
+  "materials": {
+    "default_material": {
+      "type": "principled_bsdf",
+      "base_color": [0.8, 0.8, 0.8],
+      "metallic": 0.0,
+      "roughness": 0.5,
+      "normal_map": "assets/textures/normal_map.exr",
+      "roughness_map": "assets/textures/roughness_map.exr"
+    }
+  },
+  "camera": {
+    "type": "perspective",
+    "focal_length": 35,
+    "sensor_width": 36,
+    "sensor_height": 24,
+    "position": [80, 50, 100],
+    "rotation": [-35, 45, 0],
+    "dof": {
+      "enabled": true,
+      "focus_distance": 150,
+      "aperture": 2.0,
+      "blade_count": 7
+    }
+  },
+  "render_settings": {
+    "engine": "cycles",
+    "device": "CUDA",
+    "samples": 256,
+    "adaptive_sampling": true,
+    "adaptive_threshold": 0.01,
+    "use_denoising": true,
+    "denoiser": "optix",
+    "denoising_radius": 8,
+    "motion_blur": true,
+    "motion_blur_samples": 16,
+    "use_caustics": true,
+    "caustic_samples": 4,
+    "caustic_blur": 2.0
+  },
+  "world": {
+    "use_nodes": true,
+    "background_color": [0.05, 0.05, 0.1],
+    "background_strength": 1.0,
+    "ambient_occlusion": {
+      "enabled": true,
+      "samples": 64,
+      "distance": 2.0
+    }
+  },
+  "output": {
+    "path": "./output/blender_renders",
+    "format": "OPEN_EXR",
+    "color_depth": "32bit",
+    "compression": "zip",
+    "multilayer": true,
+    "passes": [
+      "combined",
+      "diffuse",
+      "specular",
+      "emission",
+      "normal",
+      "ambient_occlusion"
+    ]
+  },
+  "metadata": {
+    "stage": "3d_rendering",
+    "priority": 1,
+    "estimated_duration_minutes": 180,
+    "quality": "4K_ready",
+    "target_audience": "professional_production",
+    "description": "Professional photorealistic cinematic render with advanced materials, realistic lighting setup (4-point), depth of field, motion blur, and adaptive sampling for 256 sample quality"
+  }
+}

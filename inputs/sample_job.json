@@ -1,0 +1,13 @@
+{
+  "name": "dragon_cinematic",
+  "description": "A dragon flying over a medieval castle at sunset, cinematic, 30s",
+  "duration": 30,
+  "resolution": "1080p",
+  "fps": 30,
+  "target": "blender",
+  "assets": ["dragon_v1", "castle_medieval_v2"],
+  "output": {
+    "format": "mp4",
+    "path": "output/videos/dragon_cinematic.mp4"
+  }
+}

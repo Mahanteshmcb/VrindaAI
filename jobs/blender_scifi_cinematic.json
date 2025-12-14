@@ -1,0 +1,146 @@
+{
+  "job_id": "JOB_BLENDER_SCIFI_CINEMATIC_001",
+  "timestamp": "2025-12-14T18:00:00Z",
+  "header": {
+    "project_name": "SciFirealisCinematic",
+    "scene_name": "FloatingCityRender",
+    "description": "Professional cinematic render - Futuristic floating city with camera flyby",
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fps": 24,
+    "frame_range": {
+      "start": 1,
+      "end": 240
+    }
+  },
+  "engine": "blender",
+  "assets": {
+    "characters": [],
+    "environments": [
+      {
+        "id": "env_city",
+        "name": "FloatingCity",
+        "path": "builtin",
+        "format": "blend"
+      }
+    ],
+    "props": [],
+    "animations": []
+  },
+  "actions": [
+    {
+      "type": "create_environment",
+      "target": "Scene",
+      "parameters": {
+        "type": "geometric",
+        "scale": 100,
+        "complexity": "medium"
+      }
+    },
+    {
+      "type": "setup_camera",
+      "target": "Camera",
+      "parameters": {
+        "position": [50, 30, 60],
+        "rotation": [-30, 45, 0],
+        "focal_length": 50,
+        "keyframes": [
+          {
+            "frame": 1,
+            "position": [50, 30, 60],
+            "rotation": [-30, 45, 0]
+          },
+          {
+            "frame": 120,
+            "position": [20, 40, 80],
+            "rotation": [-25, 90, 0]
+          },
+          {
+            "frame": 240,
+            "position": [-50, 35, 50],
+            "rotation": [-20, 180, 0]
+          }
+        ]
+      }
+    },
+    {
+      "type": "setup_lighting",
+      "target": "Lights",
+      "parameters": {
+        "ambient": 0.4,
+        "sun_position": [100, 100, 150],
+        "sun_intensity": 2.0,
+        "use_hdri": true
+      }
+    },
+    {
+      "type": "render",
+      "target": "Camera",
+      "parameters": {
+        "start_frame": 1,
+        "end_frame": 240,
+        "output_path": "./output/scifi_cinematic_####.exr",
+        "engine": "cycles",
+        "samples": 128,
+        "use_gpu": true,
+        "gpu_type": "cuda",
+        "denoising": "optix"
+      }
+    }
+  ],
+  "lighting": {
+    "ambient_strength": 0.4,
+    "lights": [
+      {
+        "type": "sun",
+        "intensity": 2.0,
+        "position": [100, 100, 150],
+        "rotation": [-45, 45, 0],
+        "shadow_softness": 3.0,
+        "color": [1.0, 0.95, 0.85]
+      },
+      {
+        "type": "area",
+        "intensity": 1.5,
+        "position": [0, 50, -100],
+        "size": 50,
+        "color": [0.5, 0.7, 1.0]
+      },
+      {
+        "type": "fill",
+        "intensity": 0.6,
+        "position": [-80, 30, 50],
+        "color": [1.0, 1.0, 1.0]
+      }
+    ]
+  },
+  "camera": {
+    "type": "perspective",
+    "focal_length": 50,
+    "sensor_width": 36,
+    "sensor_height": 24,
+    "position": [50, 30, 60],
+    "rotation": [-30, 45, 0],
+    "dof": {
+      "enabled": true,
+      "focus_distance": 80,
+      "aperture": 2.8
+    }
+  },
+  "output": {
+    "path": "./output/scifi_cinematic",
+    "format": "EXR",
+    "color_depth": "32bit",
+    "compression": "zip",
+    "multilayer": true
+  },
+  "metadata": {
+    "stage": "cinematic_rendering",
+    "priority": 1,
+    "estimated_duration_minutes": 120,
+    "quality": "4K_ready",
+    "description": "Professional sci-fi cinematic with camera motion and realistic lighting"
+  }
+}

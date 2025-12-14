@@ -1,0 +1,11 @@
+{
+  "workflow_id": "WORKFLOW_HISTORY_FILM_5MIN",
+  "name": "History Short Film (5min)",
+  "jobs": [
+    "./jobs/history_film_blender.json",
+    "./jobs/history_unreal_sequence.json",
+    "./jobs/history_davinci_edit.json"
+  ],
+  "execution_mode": "sequential",
+  "notes": "Blender will produce character and environment EXR sequences; Unreal composes and enhances; DaVinci edits and exports final 5-minute deliverable. Run preview first."
+}

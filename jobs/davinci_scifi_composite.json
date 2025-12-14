@@ -1,0 +1,123 @@
+{
+  "job_id": "JOB_DAVINCI_COMPOSITE_001",
+  "timestamp": "2025-12-14T18:00:00Z",
+  "header": {
+    "project_name": "SciFirealisCinematic",
+    "scene_name": "FinalComposite",
+    "description": "Professional color grading and final composition - sci-fi cinematic",
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "frame_rate": 24,
+    "color_space": "DaVinci_YRGB"
+  },
+  "engine": "davinci",
+  "project": {
+    "timeline_fps": 24,
+    "timeline_res": "1080p",
+    "color_depth": "8bit",
+    "color_space": "Rec709"
+  },
+  "clips": [
+    {
+      "id": "clip_blender_render",
+      "source": "./output/scifi_cinematic",
+      "type": "image_sequence",
+      "format": "EXR",
+      "timeline_in": 0,
+      "timeline_out": 240,
+      "duration_frames": 240,
+      "track": "V1"
+    }
+  ],
+  "editing": {
+    "transitions": [
+      {
+        "clip_id": "clip_blender_render",
+        "transition_type": "dissolve",
+        "duration_frames": 0,
+        "curve": "ease_out"
+      }
+    ],
+    "effects": [
+      {
+        "clip_id": "clip_blender_render",
+        "effect_type": "motion_blur",
+        "enabled": true,
+        "intensity": 0.3
+      }
+    ]
+  },
+  "color_grading": {
+    "enabled": true,
+    "grading_pipeline": [
+      {
+        "stage": "primary",
+        "adjustments": {
+          "contrast": 1.15,
+          "saturation": 1.1,
+          "temperature": 150,
+          "tint": -50,
+          "highlights": 0.1,
+          "midtones": 0.05,
+          "shadows": -0.1
+        }
+      },
+      {
+        "stage": "secondary",
+        "adjustments": {
+          "vignette_strength": 0.3,
+          "blur_radius": 0.0,
+          "edge_enhancement": 0.2,
+          "chromatic_aberration": 0.0
+        }
+      },
+      {
+        "stage": "lut_application",
+        "lut_name": "scifi_look",
+        "lut_strength": 0.8,
+        "description": "Custom sci-fi cinematic look"
+      }
+    ]
+  },
+  "fusion": {
+    "enable_fusion": false,
+    "effects": []
+  },
+  "sound": {
+    "tracks": [],
+    "master_volume": 0,
+    "description": "No sound in this stage - audio to be added in post"
+  },
+  "titles": {
+    "enabled": false,
+    "items": []
+  },
+  "output": {
+    "path": "./output/scifi_cinematic_final",
+    "format": "mp4",
+    "video_codec": "h264",
+    "bitrate_mbps": 15,
+    "quality": "high",
+    "color_space": "Rec709",
+    "frame_rate": 24,
+    "resolution": "1920x1080",
+    "audio_enabled": false
+  },
+  "export_settings": {
+    "render_entire_timeline": true,
+    "start_frame": 1,
+    "end_frame": 240,
+    "use_disk_cache": true,
+    "parallel_processing": true,
+    "gpu_acceleration": true
+  },
+  "metadata": {
+    "stage": "final_composition",
+    "priority": 3,
+    "estimated_duration_minutes": 30,
+    "quality": "4K_ready",
+    "description": "Color grading and final MP4 export with professional cinematic look"
+  }
+}

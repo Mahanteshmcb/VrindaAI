@@ -1,0 +1,38 @@
+{
+  "workflowId": "cinematic_my_video_1765737775.802403",
+  "projectName": "my_video",
+  "type": "cinematic",
+  "jobs": [
+    {
+      "jobId": "blender_render_my_video",
+      "type": "blender_render",
+      "description": "A dragon flying over a castle at sunset",
+      "parameters": {
+        "resolution": 1920,
+        "resolutionY": 1080,
+        "fps": 30,
+        "frameCount": 1800,
+        "style": "Cinematic",
+        "outputPath": "output\\videos",
+        "format": "EXR",
+        "projectName": "my_video"
+      }
+    },
+    {
+      "jobId": "davinci_composite_my_video",
+      "type": "davinci_composite",
+      "description": "Post-production and compositing for A dragon flying over a castle at sunset",
+      "parameters": {
+        "inputPath": "output\\videos",
+        "outputPath": "output\\videos",
+        "outputFormat": "MP4",
+        "colorGrading": "cinematic",
+        "projectName": "my_video"
+      },
+      "dependsOn": [
+        "blender_render_my_video"
+      ]
+    }
+  ],
+  "autoExecute": true
+}

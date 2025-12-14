@@ -1,0 +1,15 @@
+{
+  "description": "A short cinematic of a spaceship flying through an asteroid field",
+  "name": "test_ship",
+  "plan": {
+    "type": "cinematic",
+    "steps": [
+      "generate_blender_script",
+      "render_frames",
+      "compose_video"
+    ]
+  },
+  "requested_engine": "blender",
+  "engine": "blender",
+  "status": "generated"
+}

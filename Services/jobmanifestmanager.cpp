@@ -274,18 +274,54 @@ bool JobManifestManager::executeJob(const QString& jobPath, Engine engine) {
             }
             
             case Engine::Unreal: {
-                // Launch Unreal Python script
-                QString unrealPython = "unrealpython";
-                arguments << "-m" << "unreal_master" << "--" << jobPath;
-                process.start(unrealPython, arguments);
+                // Try to find Unreal Editor executable
+                QString unrealExe = "unrealed.exe";
+                
+                // Try common Unreal Engine installation paths
+                QStringList unrealPaths = {
+                    "UnrealEditor.exe",  // Try PATH first
+                    "C:/Program Files/Epic Games/UE_5.6/Engine/Binaries/Win64/UnrealEditor.exe",
+                    "C:/Program Files/Epic Games/UE_5.5/Engine/Binaries/Win64/UnrealEditor.exe",
+                    "C:/Program Files/Epic Games/UE_5.4/Engine/Binaries/Win64/UnrealEditor.exe",
+                    "C:/Program Files (x86)/Epic Games/UE_5.6/Engine/Binaries/Win64/UnrealEditor.exe"
+                };
+                
+                for (const QString& path : unrealPaths) {
+                    if (QFile::exists(path)) {
+                        unrealExe = path;
+                        break;
+                    }
+                }
+                
+                // Launch Unreal with Python script
+                arguments << scriptPath << "-" << jobPath;
+                process.start(unrealExe, arguments);
                 break;
             }
             
             case Engine::DaVinci: {
-                // Launch DaVinci/Python script
-                QString python = "python";
-                arguments << scriptPath << "--" << jobPath;
-                process.start(python, arguments);
+                // Try to find DaVinci Resolve executable
+                QString davinciExe = "DaVinciResolve.exe";
+                
+                // Try common DaVinci Resolve installation paths
+                QStringList davinciPaths = {
+                    "DaVinciResolve.exe",  // Try PATH first
+                    "Resolve.exe",  // Alternative name
+                    "C:/Program Files/Blackmagic Design/DaVinci Resolve/Resolve.exe",
+                    "C:/Program Files (x86)/Blackmagic Design/DaVinci Resolve/Resolve.exe",
+                    "C:/Program Files/Blackmagic Design/DaVinci Resolve/DaVinciResolve.exe"
+                };
+                
+                for (const QString& path : davinciPaths) {
+                    if (QFile::exists(path)) {
+                        davinciExe = path;
+                        break;
+                    }
+                }
+                
+                // Launch DaVinci with Python script
+                arguments << "-nogui" << "-script" << scriptPath << jobPath;
+                process.start(davinciExe, arguments);
                 break;
             }
         }
