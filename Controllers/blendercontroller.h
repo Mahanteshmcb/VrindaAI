@@ -3,9 +3,7 @@
 
 #include <QObject>
 #include <QString>
-#include <QTextEdit>
-
-class QTextEdit; // Forward-declaration
+#include <QProcess> // Added for cleaner signal/slot handling
 
 class BlenderController : public QObject
 {
@@ -13,9 +11,8 @@ class BlenderController : public QObject
 public:
     explicit BlenderController(const QString &basePath, QObject *parent = nullptr);
 
-    // --- NEW: Public setter for configuration ---
+    // Setters for configuration
     void setBlenderPath(const QString &path);
-
     void setActiveProjectPath(const QString &path);
 
 public slots:
@@ -27,7 +24,7 @@ signals:
     void blenderError(const QString &error);
     void blenderFinished(int exitCode);
 
-    // Emitted when a specific asset path is detected in the output
+    // Emitted when a specific asset path is detected or generated
     void assetReadyForEngine(const QString &assetPath);
 
 private:

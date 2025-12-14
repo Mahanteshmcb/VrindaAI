@@ -2,7 +2,7 @@
 #include <QProcess>
 #include <QFile>
 #include <QDir>
-#include <QTextEdit>
+#include <QTextStream>
 #include <QDateTime>
 #include <QDebug>
 #include <QTemporaryDir>
@@ -11,12 +11,11 @@
 
 BlenderController::BlenderController(const QString &basePath, QObject *parent)
     : QObject(parent), m_basePath(basePath),
-    // Set a default path, which can be overridden by the setter
+    // Default path (can be overridden by settings)
     m_blenderPath("C:/Program Files/Blender Foundation/Blender 4.3/blender.exe")
 {
 }
 
-// --- NEW: Implementation of the public setter ---
 void BlenderController::setBlenderPath(const QString &path)
 {
     if (!path.isEmpty()) {
@@ -24,9 +23,14 @@ void BlenderController::setBlenderPath(const QString &path)
     }
 }
 
+void BlenderController::setActiveProjectPath(const QString &path)
+{
+    m_activeProjectPath = path;
+}
 
 void BlenderController::triggerScript(const QString &scriptContent)
 {
+    // 1. Validation
     if (!QFile::exists(m_blenderPath)) {
         emit blenderError("❌ Blender executable not found at: " + m_blenderPath);
         return;
@@ -36,42 +40,57 @@ void BlenderController::triggerScript(const QString &scriptContent)
         return;
     }
 
-    // --- START: NEW LOGIC TO SAVE SCRIPT TO A TEMPORARY FILE ---
-    QTemporaryDir tempDir;
-    if (!tempDir.isValid()) {
-        emit blenderError("❌ Could not create temporary directory for Blender script.");
+    // 2. Setup Temporary Directory & Script
+    // FIX: Allocate on heap so it survives after this function returns
+    QTemporaryDir *tempDir = new QTemporaryDir();
+    if (!tempDir->isValid()) {
+        emit blenderError("❌ Could not create temporary directory.");
+        delete tempDir;
         return;
     }
-    QString scriptPath = tempDir.path() + "/temp_blender_script.py";
+
+    // Turn off auto-remove so we can control deletion time
+    tempDir->setAutoRemove(false); 
+
+    QString scriptPath = tempDir->path() + "/temp_blender_script.py";
     QFile scriptFile(scriptPath);
     if (!scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        emit blenderError("❌ Could not create temporary script file: " + scriptPath);
+        emit blenderError("❌ Could not create script file: " + scriptPath);
+        delete tempDir;
         return;
     }
+
     QTextStream out(&scriptFile);
     out << scriptContent;
     scriptFile.close();
-    // --- END: NEW LOGIC ---
 
-
-    // The rest of the function now uses this temporary scriptPath
+    // 3. Prepare Paths
     QDir projectDir(m_activeProjectPath);
+    if (!projectDir.exists()) {
+        projectDir.mkpath(".");
+    }
     projectDir.mkpath("blend");
     projectDir.mkpath("assets");
 
     QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
-    QString blendPath = m_activeProjectPath + "/blend/scene_" + timestamp + ".blend";
-    QString fbxPath = m_activeProjectPath + "/assets/export_" + timestamp + ".fbx"; // Export FBX to assets
+    QString blendPath = projectDir.filePath("blend/scene_" + timestamp + ".blend");
+    QString fbxPath = projectDir.filePath("assets/export_" + timestamp + ".fbx");
 
+    // 4. Configure Process
     QProcess *blenderProcess = new QProcess(this);
     blenderProcess->setProcessChannelMode(QProcess::SeparateChannels);
     blenderProcess->setWorkingDirectory(m_activeProjectPath);
 
     QStringList args;
+    // --background: Run headless
+    // --python: Execute the script
+    // --: arguments passed to the python script itself
     args << "--background" << "--python" << scriptPath << "--" << fbxPath << blendPath;
 
     emit blenderOutput("🎬 Running Blender script: " + scriptPath);
+    qDebug() << "Executing:" << m_blenderPath << args;
 
+    // 5. Connect Signals
     connect(blenderProcess, &QProcess::readyReadStandardOutput, this, [=]() {
         QString output = QString::fromUtf8(blenderProcess->readAllStandardOutput()).trimmed();
         if (!output.isEmpty()) emit blenderOutput("🟢 Blender: " + output);
@@ -79,24 +98,30 @@ void BlenderController::triggerScript(const QString &scriptContent)
 
     connect(blenderProcess, &QProcess::readyReadStandardError, this, [=]() {
         QString err = QString::fromUtf8(blenderProcess->readAllStandardError()).trimmed();
-        if (!err.isEmpty()) emit blenderError("🔴 Blender Error: " + err);
+        if (!err.isEmpty()) emit blenderError("🔴 Blender Log: " + err);
     });
 
+    // Handle Cleanup when process finishes
     connect(blenderProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
-            [=](int exitCode, QProcess::ExitStatus) {
-                emit blenderFinished(exitCode);
-                if (exitCode == 0) {
-                    emit assetReadyForEngine(fbxPath);
-                }
-                blenderProcess->deleteLater();
-            });
+            [=](int exitCode, QProcess::ExitStatus status) {
+        
+        emit blenderFinished(exitCode);
+        
+        if (status == QProcess::NormalExit && exitCode == 0) {
+            emit blenderOutput("✅ Blender process completed successfully.");
+            emit assetReadyForEngine(fbxPath);
+        } else {
+            emit blenderError("❌ Blender process failed with code: " + QString::number(exitCode));
+        }
 
-    qDebug() << "Running blender:" << m_blenderPath << args;
+        // Cleanup resources
+        // Now it is safe to delete the temporary directory and the script file inside it
+        tempDir->remove(); 
+        delete tempDir; 
+        
+        blenderProcess->deleteLater();
+    });
+
+    // 6. Start
     blenderProcess->start(m_blenderPath, args);
-}
-
-// You will need to add a public slot or method to set the active project path
-void BlenderController::setActiveProjectPath(const QString &path)
-{
-    m_activeProjectPath = path;
 }

@@ -11,6 +11,18 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, Any, Union
 
+# FIX: Force UTF-8 encoding for Windows Consoles to support emojis (🚀, ✅, etc.)
+if sys.platform == "win32":
+    try:
+        # Pylance doesn't see reconfigure on abstract TextIO, so we ignore the type check
+        sys.stdout.reconfigure(encoding='utf-8') # type: ignore
+        sys.stderr.reconfigure(encoding='utf-8') # type: ignore
+    except AttributeError:
+        # Fallback for older Python versions
+        import codecs
+        sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach()) # type: ignore
+        sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach()) # type: ignore
+
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -22,16 +34,23 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     """Setup logging configuration"""
     level = logging.DEBUG if verbose else logging.INFO
     
+    # Ensure log directory exists
+    log_dir = Path("output/logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Configure logging with UTF-8 encoding for file handler
     logging.basicConfig(
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler("output/logs/vrindaai.log"),
-            logging.StreamHandler(sys.stdout)
+            # Explicitly use utf-8 for the log file
+            logging.FileHandler(log_dir / "vrindaai.log", encoding='utf-8'),
+            # Logs go to stderr so stdout is kept clean for JSON output
+            logging.StreamHandler(sys.stderr)
         ]
     )
     
-    return logging.getLogger(__name__)
+    return logging.getLogger("vrindaai_cli")
 
 
 def main():
@@ -76,6 +95,12 @@ Examples:
     input_group.add_argument(
         "--file", "-f",
         help="Path to input file (auto-detect format)"
+    )
+    # JSON argument for C++ Integration
+    input_group.add_argument(
+        "--json", 
+        type=str, 
+        help="Raw JSON input string (for C++ Integration)"
     )
     
     # Engine selection
@@ -171,16 +196,24 @@ Examples:
             input_type = InputType.FILE_PATH
         elif args.file:
             input_data = Path(args.file)
-            # Auto-detect
+        elif args.json:
+            try:
+                input_data = json.loads(args.json)
+                input_type = InputType.JSON_CONFIG
+                if isinstance(input_data, dict) and input_data.get("input_type") == "scene_description":
+                     input_type = InputType.SCENE_DESCRIPTION
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON provided: {e}")
+                print(json.dumps({"status": "error", "error": "Invalid JSON input"}))
+                return 1
         
         # Process input
         task_spec = input_processor.process_input(input_data, input_type)
         
-        # Override engine if specified
+        # Override parameters if specified
         if args.engine != "blender":
             task_spec["engine"] = args.engine
         
-        # Override other parameters
         task_spec["quality"] = args.quality
         task_spec["duration"] = args.duration
         task_spec["resolution"] = args.resolution
@@ -189,6 +222,7 @@ Examples:
         # Validate
         if not input_processor.validate_task_spec(task_spec):
             logger.error("❌ Invalid task specification")
+            print(json.dumps({"status": "failed", "error": "Invalid task specification"}))
             return 1
         
         logger.info(f"✅ Input processed successfully")
@@ -234,6 +268,9 @@ Examples:
             for key, value in result['output'].items():
                 logger.info(f"  • {key}: {value}")
         
+        # Print clean JSON to stdout for C++ integration
+        print(json.dumps(result, indent=2, default=str))
+
         if result['status'] == "failed":
             logger.error(f"\n❌ Error: {result.get('error')}")
             return 1
@@ -252,6 +289,7 @@ Examples:
     
     except Exception as e:
         logger.exception(f"❌ Fatal error: {e}")
+        print(json.dumps({"status": "failed", "error": str(e)}))
         return 1
 
 

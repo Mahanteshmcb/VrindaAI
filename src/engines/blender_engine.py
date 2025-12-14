@@ -6,9 +6,10 @@ Automates Blender 3D rendering with master templates and LLM integration
 import subprocess
 import json
 import logging
-from typing import Dict, Any, Optional, List, Tuple, cast
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 import tempfile
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -67,15 +68,14 @@ class BlenderEngine:
         Returns:
             Render result with output paths and metadata
         """
-        # FIX: Ensure description is a string and not None before slicing
-        description = str(spec.get('description', ''))
-        self.logger.info(f"Starting Blender render: {description[:50]}...")
+        desc = str(spec.get('description', ''))
+        self.logger.info(f"Starting Blender render: {desc[:50]}...")
         
         try:
             # Generate Python script for Blender
             blender_script = self._generate_render_script(spec, output_dir)
             
-            # Execute Blender in headless mode
+            # Execute Blender
             result = self._execute_blender(blender_script, spec)
             
             return result
@@ -92,21 +92,11 @@ class BlenderEngine:
     ) -> Dict[str, Any]:
         """
         Create 3D scene from description
-        
-        Args:
-            description: Natural language scene description
-            assets: List of assets to include
-            style: Visual style (cinematic, realistic, stylized, etc.)
-            
-        Returns:
-            Created scene metadata and path
         """
         self.logger.info(f"Creating Blender scene: {description[:50]}...")
         
-        # Generate scene creation script
         script = self._generate_scene_creation_script(description, assets, style)
         
-        # Execute
         result = self._execute_blender(script, {
             "description": description,
             "scene_creation": True
@@ -244,80 +234,29 @@ for light_name, config in lights_config.items():
 """
         return self._execute_script(script)
     
-    def configure_renderer(
-        self,
-        render_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Configure rendering settings"""
-        script = f"""
-import bpy
-
-scene = bpy.context.scene
-
-# Set render engine
-scene.render.engine = '{render_config.get('engine', 'CYCLES')}'
-
-# Set resolution
-scene.render.resolution_x = {render_config.get('width', 1920)}
-scene.render.resolution_y = {render_config.get('height', 1080)}
-scene.render.resolution_percentage = {render_config.get('scale', 100)}
-
-# Set frame range
-scene.frame_start = {render_config.get('frame_start', 1)}
-scene.frame_end = {render_config.get('frame_end', 240)}
-scene.render.fps = {render_config.get('fps', 24)}
-
-# Cycles settings
-if scene.render.engine == 'CYCLES':
-    cycles = scene.cycles
-    cycles.samples = {render_config.get('samples', 128)}
-    cycles.use_denoising = {render_config.get('denoise', True)}
-    cycles.denoiser = 'OPTIX'
-    cycles.device = '{render_config.get('device', 'GPU')}'
-
-print("Renderer configured")
-"""
-        return self._execute_script(script)
-    
-    def render_sequence(
-        self,
-        output_path: str,
-        render_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Render frame sequence"""
-        self.logger.info(f"Starting render sequence to {output_path}")
-        
-        script = f"""
-import bpy
-import os
-
-output_dir = r'{output_path}'
-os.makedirs(output_dir, exist_ok=True)
-
-scene = bpy.context.scene
-scene.render.filepath = os.path.join(output_dir, 'frame_####.exr')
-scene.render.image_settings.file_format = 'OPEN_EXR'
-
-# Render animation
-bpy.ops.render.render(animation=True)
-print(f"Render complete: {{scene.frame_end - scene.frame_start + 1}} frames")
-"""
-        
-        result = self._execute_script(script)
-        
-        if result.get("status") == "success":
-            # Verify output files
-            output_dir = Path(output_path)
-            frame_files = list(output_dir.glob("frame_*.exr"))
-            result["frame_count"] = len(frame_files)
-            result["output_path"] = output_path
-        
-        return result
-    
     def _generate_render_script(self, spec: Dict, output_dir: str) -> str:
-        """Generate Blender Python script for rendering"""
-        template_name = spec.get("template", "cinematic_master")
+        """Generate Blender Python script for rendering with Optimization logic"""
         
+        # 1. Determine Quality Settings
+        quality = spec.get("quality", "high")
+        
+        # Use EEVEE for speed if quality is low/medium (Real-time engine)
+        # Use CYCLES for quality if high/ultra (Ray-tracing engine)
+        if quality in ['low', 'medium']:
+            engine_type = 'BLENDER_EEVEE_NEXT' # For Blender 4.2+
+        else:
+            engine_type = 'CYCLES'
+            
+        # Samples
+        samples = 64
+        if quality == "ultra": samples = 128
+        elif quality == "low": samples = 16
+        
+        # Frame Range
+        fps = spec.get('fps', 24)
+        duration = spec.get('duration', 30)
+        frame_end = duration * fps
+
         script = f"""
 import bpy
 import os
@@ -328,31 +267,55 @@ os.makedirs(output_dir, exist_ok=True)
 
 scene = bpy.context.scene
 
-# Configure renderer
-scene.render.engine = 'CYCLES'
+# --- 1. Engine Setup ---
+try:
+    scene.render.engine = '{engine_type}'
+except:
+    # Fallback if specific Eevee name fails
+    scene.render.engine = 'BLENDER_EEVEE'
+
+# Resolution
 scene.render.resolution_x = 1920
 scene.render.resolution_y = 1080
-scene.render.fps = 24
+scene.render.resolution_percentage = 100
 
-# Set frame range based on duration
-duration_seconds = {spec.get('duration', 30)}
-fps = 24
-frame_end = duration_seconds * fps
-scene.frame_end = frame_end
+# Frame Range
+scene.render.fps = {fps}
+scene.frame_end = {frame_end}
 
-# Configure Cycles
-scene.cycles.samples = {spec.get('samples', 64)}
-scene.cycles.device = 'GPU'
-scene.cycles.use_denoising = True
+# --- 2. GPU Optimization (Critical for Speed) ---
+if 'CYCLES' in scene.render.engine:
+    scene.cycles.device = 'GPU'
+    scene.cycles.samples = {samples}
+    scene.cycles.use_denoising = True
+    
+    # Enable GPU in Preferences
+    prefs = bpy.context.preferences
+    cprefs = prefs.addons['cycles'].preferences
+    cprefs.refresh_devices()
+    
+    # Try OPTIX first (Nvidia RTX), then CUDA, then HIP (AMD)
+    devices = cprefs.get_devices_for_type(compute_device_type='OPTIX')
+    if not devices:
+        devices = cprefs.get_devices_for_type(compute_device_type='CUDA')
+    
+    if devices:
+        cprefs.compute_device_type = 'OPTIX' if 'OPTIX' in [d.type for d in devices] else 'CUDA'
+        for device in devices:
+            device.use = True
+        print(f"Enabled GPU Rendering on: {{[d.name for d in devices]}}")
+    else:
+        print("WARNING: No GPU found! Rendering will be slow.")
 
-# Setup output format
-scene.render.filepath = os.path.join(output_dir, 'frame_####.exr')
-scene.render.image_settings.file_format = 'OPEN_EXR'
-scene.render.image_settings.color_depth = '16'
+# --- 3. Output Format ---
+# Use PNG for low quality speed, EXR for professional pipeline
+file_format = 'PNG' if '{quality}' == 'low' else 'OPEN_EXR'
+scene.render.image_settings.file_format = file_format
+scene.render.filepath = os.path.join(output_dir, 'frame_####')
 
-print(f"Rendering {{frame_end}} frames...")
+print(f"Rendering {{scene.frame_end}} frames using {{scene.render.engine}}...")
 
-# Render animation
+# --- 4. Render ---
 bpy.ops.render.render(animation=True)
 
 print("Render complete!")
@@ -407,25 +370,45 @@ print(f"Scene created with {{len(assets)}} assets")
             
             self.logger.info(f"Executing: {' '.join(cmd)}")
             
-            result = subprocess.run(
+            # Use Popen to stream output line-by-line
+            process = subprocess.Popen(
                 cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 text=True,
-                timeout=3600
+                encoding='utf-8', # Force UTF-8 to handle progress bars
+                errors='replace'
             )
             
-            if result.returncode == 0:
+            # FIX: Explicit check for None to satisfy Pylance
+            if process.stdout is None:
+                raise RuntimeError("Failed to create stdout pipe for Blender process")
+
+            # Read stdout line by line
+            while True:
+                output = process.stdout.readline()
+                if output == '' and process.poll() is not None:
+                    break
+                if output:
+                    # Print to console immediately so user sees progress
+                    print(f"Blender: {output.strip()}")
+            
+            if process.returncode == 0:
                 return {
                     "status": "success",
-                    "stdout": result.stdout,
-                    "stderr": result.stderr
+                    "stdout": "Process finished (logs streamed)",
+                    "stderr": None
                 }
             else:
                 return {
                     "status": "failed",
-                    "error": result.stderr or "Blender execution failed"
+                    "error": "Blender execution failed (see console logs)"
                 }
         
+        except Exception as e:
+            self.logger.error(f"Execution failed: {e}")
+            return {"status": "failed", "error": str(e)}
+            
         finally:
             Path(script_path).unlink(missing_ok=True)
     

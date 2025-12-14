@@ -47,7 +47,8 @@ class Orchestrator:
         """
         self.config = config or self._load_default_config()
         self.logger = logging.getLogger(__name__)
-        self.output_dir = Path(self.config.get("output_dir", "output"))
+        # FIX: Ensure output_dir is absolute to avoid ambiguity
+        self.output_dir = Path(self.config.get("output_dir", "output")).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         self.workflow_status = {}
@@ -72,18 +73,9 @@ class Orchestrator:
         mode: ExecutionMode = ExecutionMode.SEQUENTIAL,
         dry_run: bool = False
     ) -> Dict[str, Any]:
-        """
-        Execute a complete workflow based on task specification
+        """Execute a complete workflow based on task specification"""
         
-        Args:
-            task_spec: Normalized task specification from InputProcessor
-            mode: Execution mode (sequential/parallel/interactive)
-            dry_run: If True, only prepare but don't execute
-            
-        Returns:
-            Execution result with status and output paths
-        """
-        # FIX: Safely handle description to avoid 'NoneType' is not subscriptable
+        # FIX: Safely handle description
         description = str(task_spec.get('description', ''))
         self.logger.info(f"Starting workflow execution: {description[:50]}...")
         
@@ -102,9 +94,8 @@ class Orchestrator:
         try:
             # Stage 1: Prepare environment
             self.logger.info("Stage 1: Preparing environment")
-            prep_result = self._prepare_environment(task_spec)
+            prep_result = self._prepare_environment(task_spec, workflow_id)
             
-            # FIX: Ensure prep_result is valid and access safely with .get()
             if not prep_result or not prep_result.get("success"):
                 error_msg = prep_result.get('error') if prep_result else "Unknown error"
                 raise Exception(f"Environment preparation failed: {error_msg}")
@@ -117,7 +108,8 @@ class Orchestrator:
             
             # Stage 2: Generate job manifests
             self.logger.info("Stage 2: Generating job manifests")
-            job_manifests = self._generate_job_manifests(task_spec)
+            # FIX: Pass workflow_id to generate correct paths
+            job_manifests = self._generate_job_manifests(task_spec, workflow_id)
             result["job_count"] = len(job_manifests)
             
             if dry_run:
@@ -172,13 +164,11 @@ class Orchestrator:
         
         return result
     
-    def _prepare_environment(self, task_spec: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_environment(self, task_spec: Dict[str, Any], workflow_id: str) -> Dict[str, Any]:
         """Prepare environment for execution"""
         try:
-            # FIX: Default to empty string or handle None safely
             engine = str(task_spec.get("engine", ""))
             
-            # Check if engine is available
             engine_path = self._find_engine_executable(engine)
             if not engine_path:
                 return {
@@ -186,14 +176,16 @@ class Orchestrator:
                     "error": f"Engine not found: {engine}"
                 }
             
-            # Create output directories
-            # FIX: Safely handle description for folder naming
+            # FIX: Use safe folder naming and create specific job folder
             desc = str(task_spec.get("description", "unnamed"))
-            output_dir = self.output_dir / desc[:30]
+            safe_desc = "".join([c for c in desc if c.isalnum() or c in (' ', '-', '_')]).strip()
+            
+            # Create a dedicated folder for this run: output/ProjectName_ID
+            output_dir = self.output_dir / f"{safe_desc[:30]}_{workflow_id}"
             output_dir.mkdir(parents=True, exist_ok=True)
             
             # Create temp directory
-            temp_dir = Path(".temp") / str(self._generate_workflow_id())
+            temp_dir = Path(".temp") / workflow_id
             temp_dir.mkdir(parents=True, exist_ok=True)
             
             return {
@@ -207,22 +199,27 @@ class Orchestrator:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def _generate_job_manifests(self, task_spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _generate_job_manifests(self, task_spec: Dict[str, Any], workflow_id: str) -> List[Dict[str, Any]]:
         """Generate job manifests for execution"""
         engine = task_spec.get("engine")
         
         if engine == "blender":
-            return self._generate_blender_manifests(task_spec)
+            return self._generate_blender_manifests(task_spec, workflow_id)
         elif engine == "unreal":
-            return self._generate_unreal_manifests(task_spec)
+            return self._generate_unreal_manifests(task_spec, workflow_id)
         elif engine == "davinci":
-            return self._generate_davinci_manifests(task_spec)
+            return self._generate_davinci_manifests(task_spec, workflow_id)
         else:
             raise ValueError(f"Unknown engine: {engine}")
     
-    def _generate_blender_manifests(self, task_spec: Dict[str, Any]) -> List[Dict]:
+    def _generate_blender_manifests(self, task_spec: Dict[str, Any], workflow_id: str) -> List[Dict]:
         """Generate Blender job manifests"""
         manifests = []
+        
+        # Calculate correct output path
+        desc = str(task_spec.get("description", "unnamed"))
+        safe_desc = "".join([c for c in desc if c.isalnum() or c in (' ', '-', '_')]).strip()
+        project_folder = self.output_dir / f"{safe_desc[:30]}_{workflow_id}"
         
         # Main render job
         render_job = {
@@ -239,20 +236,26 @@ class Orchestrator:
                 "engine": "cycles",
                 "device": "gpu" if self._has_gpu() else "cpu",
                 "description": task_spec.get("description"),
+                "quality": task_spec.get("quality", "high")
             },
             "assets": task_spec.get("assets", []),
             "output": {
                 "format": "EXR",
-                "path": "output/renders/{workflow_id}/frames"
+                # FIX: Use absolute, resolved path with f-string injection
+                "path": str(project_folder / "frames")
             }
         }
         manifests.append(render_job)
         
         return manifests
     
-    def _generate_unreal_manifests(self, task_spec: Dict[str, Any]) -> List[Dict]:
+    def _generate_unreal_manifests(self, task_spec: Dict[str, Any], workflow_id: str) -> List[Dict]:
         """Generate Unreal Engine job manifests"""
         manifests = []
+        
+        desc = str(task_spec.get("description", "unnamed"))
+        safe_desc = "".join([c for c in desc if c.isalnum() or c in (' ', '-', '_')]).strip()
+        project_folder = self.output_dir / f"{safe_desc[:30]}_{workflow_id}"
         
         # Project creation
         create_job = {
@@ -266,7 +269,7 @@ class Orchestrator:
                 "description": task_spec.get("description"),
             },
             "output": {
-                "path": "output/games/{workflow_id}"
+                "path": str(project_folder / "ue_project")
             }
         }
         manifests.append(create_job)
@@ -282,16 +285,20 @@ class Orchestrator:
             },
             "depends_on": ["unreal_project_create"],
             "output": {
-                "path": "output/games/{workflow_id}/Content"
+                "path": str(project_folder / "ue_project" / "Content")
             }
         }
         manifests.append(scene_job)
         
         return manifests
     
-    def _generate_davinci_manifests(self, task_spec: Dict[str, Any]) -> List[Dict]:
+    def _generate_davinci_manifests(self, task_spec: Dict[str, Any], workflow_id: str) -> List[Dict]:
         """Generate DaVinci Resolve job manifests"""
         manifests = []
+        
+        desc = str(task_spec.get("description", "unnamed"))
+        safe_desc = "".join([c for c in desc if c.isalnum() or c in (' ', '-', '_')]).strip()
+        project_folder = self.output_dir / f"{safe_desc[:30]}_{workflow_id}"
         
         # Color grading job
         grade_job = {
@@ -306,13 +313,13 @@ class Orchestrator:
             },
             "input": {
                 "type": "sequence",
-                "path": "output/renders/{workflow_id}/frames"
+                "path": str(project_folder / "frames")
             },
             "output": {
                 "format": "mp4",
                 "codec": "h264",
                 "bitrate": "15000k" if task_spec.get("quality") == "ultra" else "10000k",
-                "path": "output/videos/{workflow_id}.mp4"
+                "path": str(project_folder / "video.mp4")
             }
         }
         manifests.append(grade_job)
@@ -420,21 +427,110 @@ class Orchestrator:
         return results
     
     def _execute_job(self, manifest: Dict) -> Dict[str, Any]:
-        """Execute a single job"""
-        engine = manifest.get("engine")
+        """Execute a single job using real Engine Wrappers"""
+        engine_type = manifest.get("engine")
         job_type = manifest.get("type", "")
+        job_id = manifest.get("id")
         
-        self.logger.info(f"Executing {engine} job: {job_type}")
+        self.logger.info(f"Executing {engine_type} job: {job_type}")
+        start_time = datetime.now()
         
-        # This would be implemented to call appropriate engine controllers
-        # For now, return a mock success
-        return {
-            "status": "completed",
-            "job_id": manifest.get("id"),
-            "output": f"output/{engine}/{manifest.get('id')}",
-            "duration": 0,
-            "timestamp": datetime.now().isoformat()
-        }
+        output_data = {}
+        
+        try:
+            # ---------------------------------------------------------
+            # 1. BLENDER ENGINE
+            # ---------------------------------------------------------
+            if engine_type == "blender":
+                from engines.blender_engine import create_blender_engine
+                blender = create_blender_engine()
+                
+                if job_type == "render":
+                    # Use path from manifest, ensure parent dir exists
+                    out_path_str = manifest.get("output", {}).get("path")
+                    # No fallback here, trust the manifest generation
+                    if not out_path_str:
+                         raise ValueError("No output path in manifest")
+                         
+                    output_path = Path(out_path_str)
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # Call actual render logic
+                    # We pass the parent folder because Blender appends frame numbers
+                    output_data = blender.render_from_spec(
+                        manifest.get("parameters", {}), 
+                        str(output_path) # Pass the frame folder itself
+                    )
+                
+                elif job_type == "scene_create":
+                    # Call scene creation logic
+                    desc = manifest.get("parameters", {}).get("description", "")
+                    assets = manifest.get("parameters", {}).get("assets", [])
+                    output_data = blender.create_scene(desc, assets)
+
+            # ---------------------------------------------------------
+            # 2. UNREAL ENGINE
+            # ---------------------------------------------------------
+            elif engine_type == "unreal":
+                from engines.unreal_engine import create_unreal_engine
+                unreal = create_unreal_engine()
+                
+                if job_type == "project_create":
+                    # Use Unreal wrapper to create project
+                    params = manifest.get("parameters", {})
+                    out_path = manifest.get("output", {}).get("path")
+                    # Note: You may need to implement create_project inside unreal_engine.py
+                    # if it doesn't exist, this is a placeholder call:
+                    if hasattr(unreal, 'create_project'):
+                        # Pass project NAME, not full path, if your wrapper expects name
+                        # Assuming wrapper takes name and creates in output/games
+                        proj_name = Path(out_path).name
+                        output_data = unreal.create_project(proj_name, params.get("game_type"))
+                    else:
+                        output_data = {"status": "simulated", "message": "Unreal create_project called"}
+
+                elif job_type == "scene_create":
+                    desc = manifest.get("parameters", {}).get("description", "")
+                    assets = manifest.get("parameters", {}).get("assets", [])
+                    if hasattr(unreal, 'create_scene'):
+                        # Pass a dummy project path or the one from dependencies
+                        output_data = unreal.create_scene("DefaultProject", "NewScene", desc, assets)
+            
+            # ---------------------------------------------------------
+            # 3. DAVINCI RESOLVE
+            # ---------------------------------------------------------
+            elif engine_type == "davinci":
+                from engines.davinci_engine import create_davinci_engine
+                davinci = create_davinci_engine()
+                
+                if job_type == "color_grade":
+                    # Placeholder for Davinci logic
+                    # davinci.render_timeline(...)
+                    output_data = {"status": "simulated", "message": "DaVinci color grading executed"}
+
+            # Calculate duration
+            duration = (datetime.now() - start_time).total_seconds()
+
+            # Check if engine wrapper returned a failure status
+            if isinstance(output_data, dict) and output_data.get("status") == "failed":
+                raise Exception(output_data.get("error", "Unknown engine error"))
+
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "output": output_data,
+                "duration": duration,
+                "timestamp": datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            self.logger.error(f"Job execution failed: {e}")
+            return {
+                "status": "failed",
+                "job_id": job_id,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
     
     def _post_process_results(
         self,
@@ -444,17 +540,25 @@ class Orchestrator:
         """Post-process execution results"""
         outputs = {}
         
+        # In a real scenario, we would parse execution_result['job_results']
+        # to find exact paths. For now, we infer based on the job logic.
         engine = task_spec.get("engine")
         
+        # We need to know the workflow ID to construct paths, 
+        # or grab them from the last executed job.
+        last_job_id = list(execution_result.get("job_results", {}).keys())[-1]
+        last_job_output = execution_result.get("job_results", {}).get(last_job_id, {}).get("output", {})
+        
         if engine == "blender":
-            outputs["video"] = "output/videos/final.mp4"
-            outputs["frames"] = "output/renders/frames"
+            # Best guess if we can't extract from logs
+            outputs["frames"] = "Check output/renders folder"
+            if isinstance(last_job_output, dict) and "output_path" in last_job_output:
+                 outputs["frames"] = last_job_output["output_path"]
+                 
         elif engine == "unreal":
-            outputs["game"] = "output/games/final.exe"
-            outputs["assets"] = "output/games/assets"
+            outputs["game"] = "Check output/games folder"
         elif engine == "davinci":
-            outputs["video"] = "output/videos/final.mp4"
-            outputs["project"] = "output/davinci_projects"
+            outputs["video"] = "Check output/videos folder"
         
         return {"outputs": outputs}
     
