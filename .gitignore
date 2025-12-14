@@ -85,6 +85,7 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
+scripts/
 
 # Qt Creator
 *.pro.user
