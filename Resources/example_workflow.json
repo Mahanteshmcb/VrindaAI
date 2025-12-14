@@ -1,0 +1,57 @@
+{
+  "project_name": "SciFi_Short_Film",
+  "output_path": "./projects/SciFi_Short_Film/renders",
+  "resolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "fps": 24,
+  "continue_on_error": false,
+  "parallel_execution": false,
+  "scenes": [
+    {
+      "id": "scene_001",
+      "name": "Establishing Shot - Space Station",
+      "description": "Wide establishing shot of futuristic space station orbiting Earth",
+      "background_asset": "Resources/Assets/environments/space_station_exterior.glb",
+      "character_asset": null,
+      "animation": null,
+      "frame_start": 1,
+      "frame_end": 120,
+      "target_engine": "blender"
+    },
+    {
+      "id": "scene_002",
+      "name": "Interior Lab Scene",
+      "description": "Camera enters the station and moves through a high-tech laboratory",
+      "background_asset": "Resources/Assets/environments/lab_interior.glb",
+      "character_asset": "Resources/Assets/characters/dr_zara.fbx",
+      "animation": "Resources/Assets/animations/walk_forward.fbx",
+      "frame_start": 1,
+      "frame_end": 180,
+      "target_engine": "unreal"
+    },
+    {
+      "id": "scene_003",
+      "name": "Dialog & Reaction",
+      "description": "Close-up of character with dialog",
+      "background_asset": "Resources/Assets/environments/lab_interior.glb",
+      "character_asset": "Resources/Assets/characters/dr_zara.fbx",
+      "animation": "Resources/Assets/animations/talk_serious.fbx",
+      "frame_start": 1,
+      "frame_end": 240,
+      "target_engine": "unreal"
+    },
+    {
+      "id": "scene_004",
+      "name": "Final Assembly",
+      "description": "Combine all scenes with transitions and audio",
+      "background_asset": null,
+      "character_asset": null,
+      "animation": null,
+      "frame_start": 0,
+      "frame_end": 0,
+      "target_engine": "davinci"
+    }
+  ]
+}

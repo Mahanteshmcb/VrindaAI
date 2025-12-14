@@ -1,0 +1,215 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VrindaAI Job Manifest",
+  "description": "Universal Job Ticket for 3D & Media Automation",
+  "type": "object",
+  "required": ["header", "engine", "actions", "output"],
+  "properties": {
+    "job_id": {
+      "type": "string",
+      "description": "Unique job identifier"
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "ISO 8601 timestamp when job was created"
+    },
+    "header": {
+      "type": "object",
+      "required": ["project_name", "resolution", "fps"],
+      "properties": {
+        "project_name": {
+          "type": "string",
+          "description": "Name of the project"
+        },
+        "scene_name": {
+          "type": "string",
+          "description": "Name of the scene/shot"
+        },
+        "description": {
+          "type": "string",
+          "description": "Scene description"
+        },
+        "resolution": {
+          "type": "object",
+          "required": ["width", "height"],
+          "properties": {
+            "width": {"type": "integer"},
+            "height": {"type": "integer"}
+          }
+        },
+        "fps": {
+          "type": "integer",
+          "description": "Frames per second (24, 30, 60)"
+        },
+        "frame_range": {
+          "type": "object",
+          "properties": {
+            "start": {"type": "integer"},
+            "end": {"type": "integer"}
+          }
+        }
+      }
+    },
+    "engine": {
+      "type": "string",
+      "enum": ["blender", "unreal", "davinci"],
+      "description": "Target engine for this job"
+    },
+    "assets": {
+      "type": "object",
+      "properties": {
+        "characters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "name": {"type": "string"},
+              "path": {"type": "string"},
+              "format": {"type": "string", "enum": ["glb", "fbx", "blend"]}
+            }
+          }
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "name": {"type": "string"},
+              "path": {"type": "string"},
+              "format": {"type": "string", "enum": ["glb", "fbx", "blend"]}
+            }
+          }
+        },
+        "props": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "name": {"type": "string"},
+              "path": {"type": "string"}
+            }
+          }
+        },
+        "animations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "character_id": {"type": "string"},
+              "animation_name": {"type": "string"},
+              "path": {"type": "string"},
+              "frame_range": {"type": "object"}
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "import_asset",
+              "apply_animation",
+              "set_camera",
+              "set_lighting",
+              "render",
+              "create_sequence",
+              "add_audio",
+              "export"
+            ]
+          },
+          "target": {"type": "string"},
+          "parameters": {"type": "object"},
+          "frame": {"type": "integer"},
+          "duration": {"type": "integer"}
+        }
+      }
+    },
+    "lighting": {
+      "type": "object",
+      "properties": {
+        "ambient_strength": {"type": "number"},
+        "sun_angle": {"type": "number"},
+        "lights": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string", "enum": ["sun", "point", "spot"]},
+              "intensity": {"type": "number"},
+              "position": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+              "rotation": {"type": "array", "items": {"type": "number"}}
+            }
+          }
+        }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "properties": {
+        "position": {
+          "type": "array",
+          "items": {"type": "number"},
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "rotation": {
+          "type": "array",
+          "items": {"type": "number"}
+        },
+        "focal_length": {"type": "number"},
+        "keyframes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "frame": {"type": "integer"},
+              "position": {"type": "array"},
+              "rotation": {"type": "array"}
+            }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Output file path"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["mp4", "exr", "png", "mov", "jpeg"],
+          "description": "Output file format"
+        },
+        "codec": {
+          "type": "string",
+          "description": "Video codec (h264, h265, prores, etc.)"
+        },
+        "bitrate": {
+          "type": "string",
+          "description": "Bitrate (e.g., 25M, 50M)"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "created_by": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

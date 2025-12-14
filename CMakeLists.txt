@@ -37,6 +37,14 @@ qt_add_executable(VrindaAI
     Services/projectmanager.h
     Services/vectordatabasemanager.cpp
     Services/vectordatabasemanager.h
+    
+    # --- NEW: Job Manifest & Workflow Services ---
+    Services/jobmanifestmanager.cpp
+    Services/jobmanifestmanager.h
+    Services/workflowexecutor.cpp
+    Services/workflowexecutor.h
+    Services/headlessexecutor.cpp
+    Services/headlessexecutor.h
 
     # --- Controllers ---
     Controllers/projectworkflow.cpp

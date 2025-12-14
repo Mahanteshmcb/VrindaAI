@@ -1,0 +1,65 @@
+{
+  "workflow_id": "CINEMATIC_PIPELINE_001",
+  "name": "CinematicPipeline",
+  "description": "Complete cinematic movie production pipeline: Blender rendering → DaVinci composition/export",
+  "version": "1.0",
+  "created": "2025-12-14T12:00:00Z",
+  "project_name": "CinematicPipeline",
+  "output_path": "./output",
+  "settings": {
+    "parallel_execution": false,
+    "continue_on_error": false,
+    "max_retries": 2,
+    "timeout_minutes": 180
+  },
+  "jobs": [
+    "./jobs/blender_cinematic_job.json",
+    "./jobs/davinci_composite_job.json"
+  ],
+  "stages": [
+    {
+      "stage_id": "stage_rendering",
+      "name": "3D Rendering Stage",
+      "description": "Render 3D scene in Blender",
+      "engine": "blender",
+      "jobs": ["./jobs/blender_cinematic_job.json"],
+      "dependencies": [],
+      "parallel": false
+    },
+    {
+      "stage_id": "stage_composition",
+      "name": "Video Composition Stage",
+      "description": "Compose rendered footage in DaVinci Resolve",
+      "engine": "davinci",
+      "jobs": ["./jobs/davinci_composite_job.json"],
+      "dependencies": ["stage_rendering"],
+      "parallel": false
+    }
+  ],
+  "global_settings": {
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fps": 24,
+    "frame_range": {
+      "start": 1,
+      "end": 240
+    },
+    "color_space": "linear",
+    "bit_depth": 32
+  },
+  "notifications": {
+    "on_start": true,
+    "on_complete": true,
+    "on_error": true,
+    "email": ""
+  },
+  "metadata": {
+    "category": "cinematic",
+    "complexity": "high",
+    "estimated_total_minutes": 75,
+    "quality_target": "4K_ready",
+    "notes": "Professional cinematic movie generation pipeline"
+  }
+}

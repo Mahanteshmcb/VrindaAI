@@ -1,0 +1,61 @@
+{
+  "job_id": "JOB_BLENDER_DEFAULT_RENDER",
+  "timestamp": "2025-12-14T12:00:00Z",
+  "header": {
+    "project_name": "BlenderTest",
+    "scene_name": "DefaultSceneRender",
+    "resolution": {
+      "width": 1280,
+      "height": 720
+    },
+    "fps": 24,
+    "frame_range": {
+      "start": 1,
+      "end": 10
+    }
+  },
+  "engine": "blender",
+  "assets": {
+    "characters": [],
+    "environments": [],
+    "props": [],
+    "animations": []
+  },
+  "actions": [
+    {
+      "type": "render",
+      "target": "Scene",
+      "parameters": {
+        "start_frame": 1,
+        "end_frame": 10,
+        "output_path": "./output/test_render.png",
+        "engine": "cycles",
+        "samples": 32,
+        "use_gpu": false
+      }
+    }
+  ],
+  "lighting": {
+    "ambient_strength": 0.5,
+    "lights": []
+  },
+  "camera": {
+    "type": "perspective",
+    "focal_length": 50,
+    "sensor_width": 36,
+    "sensor_height": 24,
+    "position": [0, 0, 0],
+    "rotation": [0, 0, 0]
+  },
+  "output": {
+    "path": "./output/test_render.png",
+    "format": "PNG",
+    "color_depth": "8bit"
+  },
+  "metadata": {
+    "stage": "test_rendering",
+    "priority": 1,
+    "estimated_duration_minutes": 5,
+    "description": "Simple test render using Blender default scene"
+  }
+}

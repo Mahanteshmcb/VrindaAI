@@ -1,0 +1,40 @@
+{
+  "workflow_id": "TEST_SIMPLE_001",
+  "name": "SimpleTest",
+  "description": "Simple test workflow",
+  "version": "1.0",
+  "created": "2025-12-14T12:00:00Z",
+  "project_name": "SimpleTest",
+  "output_path": "./output",
+  "settings": {
+    "parallel_execution": false,
+    "continue_on_error": false,
+    "max_retries": 1,
+    "timeout_minutes": 10
+  },
+  "jobs": [
+    "./jobs/blender_cinematic_job.json"
+  ],
+  "stages": [
+    {
+      "stage_id": "stage_test",
+      "name": "Test Stage",
+      "description": "Test rendering",
+      "engine": "blender",
+      "jobs": ["./jobs/blender_cinematic_job.json"],
+      "dependencies": [],
+      "parallel": false
+    }
+  ],
+  "global_settings": {
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "fps": 24
+  },
+  "metadata": {
+    "category": "test",
+    "complexity": "low"
+  }
+}

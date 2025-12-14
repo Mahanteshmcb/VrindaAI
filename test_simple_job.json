@@ -1,0 +1,62 @@
+{
+  "job_id": "TEST_JOB_001",
+  "timestamp": "2025-12-14T12:00:00Z",
+  "header": {
+    "project_name": "TestProject",
+    "scene_name": "SimpleRender",
+    "resolution": {
+      "width": 1280,
+      "height": 720
+    },
+    "fps": 24,
+    "frame_range": {
+      "start": 1,
+      "end": 100
+    }
+  },
+  "engine": "blender",
+  "assets": {
+    "characters": [],
+    "environments": [
+      {
+        "id": "env_default",
+        "name": "DefaultScene",
+        "path": "default",
+        "format": "blend"
+      }
+    ],
+    "props": [],
+    "animations": []
+  },
+  "actions": [
+    {
+      "type": "render",
+      "target": "",
+      "parameters": {
+        "start_frame": 1,
+        "end_frame": 50,
+        "output_path": "./output/test_render.exr"
+      }
+    }
+  ],
+  "lighting": {
+    "lights": [
+      {
+        "type": "sun",
+        "intensity": 1.0,
+        "position": [10, 10, 20]
+      }
+    ]
+  },
+  "camera": {
+    "position": [7.0, 7.0, 7.0],
+    "rotation": [0.5, 0.5, 0.0],
+    "focal_length": 50
+  },
+  "output": {
+    "path": "./output/test_render.mp4",
+    "format": "mp4",
+    "codec": "h264",
+    "bitrate": "10M"
+  }
+}
