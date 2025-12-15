@@ -1,17 +1,16 @@
 {
-  "application": "VrindaAI",
-  "version": "2.0",
-  "description": "Autonomous AI Content Creator",
-  
+  "application": "VrindaAI AAA Pipeline",
+  "version": "3.1",
   "paths": {
     "blender": "C:/Program Files/Blender Foundation/Blender 4.3/blender.exe",
-    "unreal": "C:/Program Files/Epic Games/UE_5.3",
-    "davinci": "C:/Program Files/Blackmagic Design/DaVinci Resolve",
+    "unreal": "C:/Program Files/Epic Games/UE_5.6/Engine/Binaries/Win64/UnrealEditor-Cmd.exe",
+    "ffmpeg": "C:/ffmpeg/bin/ffmpeg.exe",
+    "vault_cache": "C:/ProgramData/Epic/EpicGamesLauncher/VaultCache",
+    "unreal_projects_root": "C:/Users/Mahantesh/Documents/Unreal Projects",
     "output": "./output",
     "templates": "./master_templates",
     "assets": "./assets"
   },
-  
   "llm": {
     "provider": "llama.cpp",
     "host": "127.0.0.1",
@@ -20,30 +19,24 @@
     "temperature": 0.7,
     "max_tokens": 2048
   },
-  
   "rendering": {
     "default_quality": "high",
-    "default_resolution": "1080p",
+    "default_resolution": "1920x1080",
     "default_fps": 24,
     "gpu_enabled": true,
-    "max_samples": 256
+    "max_samples": 128
   },
-  
   "video": {
     "codec": "h264",
-    "bitrate": "10000k",
+    "bitrate": "15000k",
     "format": "mp4",
-    "color_space": "rec709"
+    "container": "mp4"
   },
-  
-  "execution": {
-    "max_parallel_jobs": 2,
-    "timeout_seconds": 3600,
-    "retry_failed": true,
-    "max_retries": 2,
-    "continue_on_error": false
+  "pipeline": {
+    "use_ffmpeg_assembly": true,
+    "unreal_render_format": "jpg",
+    "asset_workflow": "direct_from_vault"
   },
-  
   "logging": {
     "level": "INFO",
     "file": "./output/logs/vrindaai.log",

@@ -28,36 +28,78 @@ class FFmpegEngine:
 
     def create_video_from_sequence(
         self,
-        image_sequence_pattern: str, # e.g. "render_%04d.exr"
+        image_sequence_pattern: str, # e.g. "render_%04d.exr" or "render_*.jpg"
         output_file: str,
         framerate: int = 24,
-        audio_file: Optional[str] = None
+        audio_file: Optional[str] = None,
+        quality: str = "high"
     ) -> Dict[str, Any]:
         """
         Stitch an image sequence (EXR/PNG/JPG) into a video file.
+        Supports both numbered sequences and wildcard patterns.
         """
         self.logger.info(f"Stitching sequence: {image_sequence_pattern} -> {output_file}")
         
         # Ensure output directory exists
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
-        # Basic command: ffmpeg -framerate 24 -i input_%04d.exr -c:v libx264 -pix_fmt yuv420p out.mp4
+        # Handle wildcard patterns (convert to FFmpeg format)
+        if "*" in image_sequence_pattern:
+            # Convert wildcard to FFmpeg %d format
+            import glob
+            matches = sorted(glob.glob(image_sequence_pattern))
+            if matches:
+                # Infer the pattern from matched files
+                first_file = Path(matches[0])
+                parent = first_file.parent
+                stem = first_file.stem
+                ext = first_file.suffix
+                
+                # Try to find the numeric pattern
+                import re
+                match = re.search(r'(\d+)$', stem)
+                if match:
+                    num_width = len(match.group(1))
+                    base_stem = stem[:match.start()]
+                    pattern = str(parent / f"{base_stem}%0{num_width}d{ext}").replace("\\", "/")
+                    start_num = int(match.group(1))
+                else:
+                    pattern = image_sequence_pattern.replace("\\", "/")
+                    start_num = 1
+            else:
+                self.logger.warning(f"No files match pattern: {image_sequence_pattern}")
+                return {"status": "failed", "error": f"No files found matching {image_sequence_pattern}"}
+        else:
+            pattern = image_sequence_pattern.replace("\\", "/")
+            start_num = 1
+
+        # Quality settings
+        if quality == "high":
+            crf = "18"  # Visually lossless
+            preset = "slow"
+        elif quality == "medium":
+            crf = "23"
+            preset = "medium"
+        else:  # low
+            crf = "28"
+            preset = "fast"
+
         cmd = [
             self.ffmpeg_path,
-            "-y", # Overwrite output
+            "-y",  # Overwrite output
             "-framerate", str(framerate),
-            "-start_number", "1", # Assuming start at 1, logic can be added to detect
-            "-i", image_sequence_pattern
+            "-start_number", str(start_num),
+            "-i", pattern
         ]
 
         if audio_file and os.path.exists(audio_file):
             cmd.extend(["-i", audio_file, "-c:a", "aac", "-shortest"])
 
-        # Video encoding settings (High quality H.264)
+        # Video encoding settings
         cmd.extend([
             "-c:v", "libx264",
-            "-preset", "slow",
-            "-crf", "18", # Visually lossless
+            "-preset", preset,
+            "-crf", crf,
             "-pix_fmt", "yuv420p",
             output_file
         ])
