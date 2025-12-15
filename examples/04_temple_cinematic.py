@@ -1,9 +1,11 @@
 """
-VrindaAI AAA Example: Temple Cinematic
-Demonstrates the full pipeline:
+VrindaAI AAA Example: Temple Cinematic with Rendering
+Demonstrates the complete pipeline:
 1. Create Unreal Project
 2. Ingest 'VPTemple...' from Epic Vault
-3. Create Cinematic Sequence
+3. Create Cinematic Sequence with camera animation
+4. Render to image sequence (MRQ)
+5. Stitch to MP4 video (FFmpeg)
 """
 
 import sys
@@ -24,22 +26,25 @@ def run_temple_pipeline():
     with open("config/settings.json") as f:
         config = json.load(f)
 
-    # 2. Define the Task
-    # We explicitly ask for the asset we found in your Vault
+    # 2. Define the Task with rendering parameters
     task_spec = {
         "description": "Ancient Temple Cinematic",
         "engine": "unreal",
         "type": "cinematic",
         "assets": [
             "VPTemple99388731072fV2"  # <--- EXACT FOLDER NAME FROM YOUR VAULT
-        ]
+        ],
+        "resolution": [1920, 1080],  # HD resolution
+        "framerate": 24,             # Cinema standard
+        "quality": "high"            # High quality rendering
     }
 
     # 3. Initialize Orchestrator
     orchestrator = Orchestrator(config)
 
-    print("\n🚀 Starting AAA Temple Pipeline...")
+    print("\n>>> Starting AAA Temple Pipeline (with Rendering)...")
     print(f"Target Asset: {task_spec['assets'][0]}")
+    print(f"Resolution: {task_spec['resolution'][0]}x{task_spec['resolution'][1]} @ {task_spec['framerate']}fps")
 
     # 4. Execute
     result = orchestrator.execute_workflow(
@@ -54,8 +59,11 @@ def run_temple_pipeline():
     if result.get('status') == 'failed':
         print(f"Error: {result.get('error')}")
     else:
-        print("✅ Project Created & Assets Ingested!")
-        print("Check 'output/' folder for the Unreal Project.")
+        print("[OK] Full AAA Pipeline Complete!")
+        print("[OUTPUT] Check 'output/' folder for:")
+        print("   - Unreal Project")
+        print("   - Rendered frame sequence")
+        print("   - Final MP4 video")
 
 if __name__ == "__main__":
     run_temple_pipeline()

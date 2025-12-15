@@ -317,8 +317,38 @@ class Orchestrator:
                 # Trigger MRQ
                 return unreal.render_sequence(
                     params.get("sequence_path"),
-                    job["output"]["path"]
+                    job["output"]["path"],
+                    tuple(params.get("resolution", [1920, 1080])),
+                    context.get("active_project")
                 )
+
+        # --- FFMPEG ENGINE ---
+        elif engine == "ffmpeg":
+            from engines.ffmpeg_engine import create_ffmpeg_engine
+            ffmpeg = create_ffmpeg_engine()
+            
+            if job_type == "stitch_sequence":
+                input_pattern = job.get("input", {}).get("pattern", "")
+                output_file = job["output"]["path"]
+                
+                if not input_pattern:
+                    return {"status": "failed", "error": "No input pattern specified for FFmpeg stitch"}
+                
+                return ffmpeg.create_video_from_sequence(
+                    input_pattern,
+                    output_file,
+                    framerate=params.get("framerate", 24),
+                    quality=params.get("quality", "high")
+                )
+            
+            elif job_type == "concat_clips":
+                clip_paths = job.get("input", {}).get("clips", [])
+                output_file = job["output"]["path"]
+                
+                if not clip_paths:
+                    return {"status": "failed", "error": "No clips specified for concatenation"}
+                
+                return ffmpeg.concat_clips(clip_paths, output_file)
 
         # --- BLENDER ENGINE ---
         elif engine == "blender":
