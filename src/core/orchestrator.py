@@ -1,6 +1,6 @@
 """
 VrindaAI - Unified Orchestrator
-Coordinates workflow execution across all engines (Blender, Unreal, DaVinci)
+Coordinates workflow execution across all engines (Blender, Unreal, FFmpeg)
 """
 
 import json
@@ -12,6 +12,10 @@ from enum import Enum
 from datetime import datetime
 import subprocess
 import sys
+
+# Import the new engines
+# Note: BlenderEngine and UnrealEngine imports are done lazily inside methods to avoid circular deps if any
+from engines.ffmpeg_engine import create_ffmpeg_engine
 
 logger = logging.getLogger(__name__)
 
@@ -169,13 +173,13 @@ class Orchestrator:
         try:
             engine = str(task_spec.get("engine", ""))
             
+            # Note: We now support ffmpeg as a valid engine for this check
             engine_path = self._find_engine_executable(engine)
-            if not engine_path:
-                return {
-                    "success": False,
-                    "error": f"Engine not found: {engine}"
-                }
-            
+            if not engine_path and engine != "ffmpeg": # FFmpeg check handled inside wrapper or config
+                 # Fallback logic: proceed if it's just a check failure, 
+                 # but log warning. FFmpeg might be in PATH.
+                 self.logger.warning(f"Engine executable not found via standard check: {engine}")
+
             # FIX: Use safe folder naming and create specific job folder
             desc = str(task_spec.get("description", "unnamed"))
             safe_desc = "".join([c for c in desc if c.isalnum() or c in (' ', '-', '_')]).strip()
@@ -190,7 +194,7 @@ class Orchestrator:
             
             return {
                 "success": True,
-                "engine_path": str(engine_path),
+                "engine_path": str(engine_path) if engine_path else "system_path",
                 "output_dir": str(output_dir),
                 "temp_dir": str(temp_dir),
                 "timestamp": datetime.now().isoformat()
@@ -207,10 +211,12 @@ class Orchestrator:
             return self._generate_blender_manifests(task_spec, workflow_id)
         elif engine == "unreal":
             return self._generate_unreal_manifests(task_spec, workflow_id)
-        elif engine == "davinci":
-            return self._generate_davinci_manifests(task_spec, workflow_id)
+        elif engine == "davinci" or engine == "ffmpeg":
+            # Map davinci requests to the new ffmpeg system
+            return self._generate_ffmpeg_manifests(task_spec, workflow_id)
         else:
-            raise ValueError(f"Unknown engine: {engine}")
+            # Default fallback
+            return self._generate_blender_manifests(task_spec, workflow_id)
     
     def _generate_blender_manifests(self, task_spec: Dict[str, Any], workflow_id: str) -> List[Dict]:
         """Generate Blender job manifests"""
@@ -257,7 +263,7 @@ class Orchestrator:
         safe_desc = "".join([c for c in desc if c.isalnum() or c in (' ', '-', '_')]).strip()
         project_folder = self.output_dir / f"{safe_desc[:30]}_{workflow_id}"
         
-        # Project creation
+        # Project creation (Legacy/Setup)
         create_job = {
             "id": "unreal_project_create",
             "engine": "unreal",
@@ -274,55 +280,50 @@ class Orchestrator:
         }
         manifests.append(create_job)
         
-        # Scene creation
-        scene_job = {
-            "id": "unreal_scene_create",
+        # Scene creation & Rendering (The "Director" phase)
+        # This assumes we want to render a sequence for later assembly
+        render_job = {
+            "id": "unreal_render_seq",
             "engine": "unreal",
-            "type": "scene_create",
+            "type": "render_sequence",
             "parameters": {
+                "sequence_path": "/Game/Cinematics/MainSequence", # Placeholder, would be dynamic
                 "description": task_spec.get("description"),
-                "assets": task_spec.get("assets", []),
             },
             "depends_on": ["unreal_project_create"],
             "output": {
-                "path": str(project_folder / "ue_project" / "Content")
+                "path": str(project_folder / "renders")
             }
         }
-        manifests.append(scene_job)
+        manifests.append(render_job)
         
         return manifests
     
-    def _generate_davinci_manifests(self, task_spec: Dict[str, Any], workflow_id: str) -> List[Dict]:
-        """Generate DaVinci Resolve job manifests"""
+    def _generate_ffmpeg_manifests(self, task_spec: Dict[str, Any], workflow_id: str) -> List[Dict]:
+        """Generate FFmpeg job manifests (replacing DaVinci)"""
         manifests = []
         
         desc = str(task_spec.get("description", "unnamed"))
         safe_desc = "".join([c for c in desc if c.isalnum() or c in (' ', '-', '_')]).strip()
         project_folder = self.output_dir / f"{safe_desc[:30]}_{workflow_id}"
         
-        # Color grading job
-        grade_job = {
-            "id": "davinci_grade",
-            "engine": "davinci",
-            "type": "color_grade",
-            "template": task_spec.get("templates", ["cinematic_color_profile"])[0],
+        # Assembly job: Stitch frames from Blender/Unreal into video
+        stitch_job = {
+            "id": "ffmpeg_assembly",
+            "engine": "ffmpeg",
+            "type": "stitch_sequence",
             "parameters": {
-                "style": task_spec.get("style", "cinematic"),
-                "grade_type": "professional",
-                "description": task_spec.get("description"),
+                "framerate": 24,
+                "description": "Assemble rendered frames",
             },
             "input": {
-                "type": "sequence",
-                "path": str(project_folder / "frames")
+                "pattern": str(project_folder / "renders" / "frame_%04d.jpg") # Assuming Unreal outputs here
             },
             "output": {
-                "format": "mp4",
-                "codec": "h264",
-                "bitrate": "15000k" if task_spec.get("quality") == "ultra" else "10000k",
-                "path": str(project_folder / "video.mp4")
+                "path": str(project_folder / "final_movie.mp4")
             }
         }
-        manifests.append(grade_job)
+        manifests.append(stitch_job)
         
         return manifests
     
@@ -469,21 +470,18 @@ class Orchestrator:
                     output_data = blender.create_scene(desc, assets)
 
             # ---------------------------------------------------------
-            # 2. UNREAL ENGINE
+            # 2. UNREAL ENGINE (The Director)
             # ---------------------------------------------------------
             elif engine_type == "unreal":
                 from engines.unreal_engine import create_unreal_engine
                 unreal = create_unreal_engine()
                 
                 if job_type == "project_create":
-                    # Use Unreal wrapper to create project
+                    # Create Project
                     params = manifest.get("parameters", {})
                     out_path = manifest.get("output", {}).get("path")
-                    # Note: You may need to implement create_project inside unreal_engine.py
-                    # if it doesn't exist, this is a placeholder call:
+                    
                     if hasattr(unreal, 'create_project'):
-                        # Pass project NAME, not full path, if your wrapper expects name
-                        # Assuming wrapper takes name and creates in output/games
                         proj_name = Path(out_path).name
                         output_data = unreal.create_project(proj_name, params.get("game_type"))
                     else:
@@ -493,20 +491,49 @@ class Orchestrator:
                     desc = manifest.get("parameters", {}).get("description", "")
                     assets = manifest.get("parameters", {}).get("assets", [])
                     if hasattr(unreal, 'create_scene'):
-                        # Pass a dummy project path or the one from dependencies
                         output_data = unreal.create_scene("DefaultProject", "NewScene", desc, assets)
+                
+                elif job_type == "spawn_metahuman":
+                    # Phase 2: Casting
+                    params = manifest.get("parameters", {})
+                    output_data = unreal.spawn_metahuman(
+                        params.get("asset_id"),
+                        params.get("location"),
+                        params.get("rotation")
+                    )
+                
+                elif job_type == "render_sequence":
+                    # Phase 5: Render via MRQ
+                    params = manifest.get("parameters", {})
+                    out_path = manifest.get("output", {}).get("path")
+                    output_data = unreal.render_sequence(
+                        params.get("sequence_path"),
+                        out_path
+                    )
             
             # ---------------------------------------------------------
-            # 3. DAVINCI RESOLVE
+            # 3. FFMPEG (The Editor) - Replaces DaVinci
             # ---------------------------------------------------------
-            elif engine_type == "davinci":
-                from engines.davinci_engine import create_davinci_engine
-                davinci = create_davinci_engine()
+            elif engine_type == "ffmpeg" or engine_type == "davinci":
+                # Note: We handle 'davinci' here too for backward compatibility during migration
+                from engines.ffmpeg_engine import create_ffmpeg_engine
+                ffmpeg = create_ffmpeg_engine()
                 
-                if job_type == "color_grade":
-                    # Placeholder for Davinci logic
-                    # davinci.render_timeline(...)
-                    output_data = {"status": "simulated", "message": "DaVinci color grading executed"}
+                if job_type == "stitch_sequence":
+                    # Assemble frames from Unreal
+                    input_pattern = manifest["input"]["pattern"] # e.g. "output/render/frame_%04d.jpg"
+                    output_file = manifest["output"]["path"]
+                    output_data = ffmpeg.create_video_from_sequence(input_pattern, output_file)
+                
+                elif job_type == "concat_clips":
+                    # Final assembly of multiple scenes
+                    clips = manifest["input"]["clips"]
+                    output_file = manifest["output"]["path"]
+                    output_data = ffmpeg.concat_clips(clips, output_file)
+                
+                elif job_type == "color_grade":
+                    # Legacy fallback
+                    output_data = {"status": "skipped", "message": "Color grading mapped to simple stitch in FFmpeg pipeline"}
 
             # Calculate duration
             duration = (datetime.now() - start_time).total_seconds()
@@ -556,8 +583,8 @@ class Orchestrator:
                  outputs["frames"] = last_job_output["output_path"]
                  
         elif engine == "unreal":
-            outputs["game"] = "Check output/games folder"
-        elif engine == "davinci":
+            outputs["game"] = "Check output/games or renders folder"
+        elif engine == "ffmpeg" or engine == "davinci":
             outputs["video"] = "Check output/videos folder"
         
         return {"outputs": outputs}
@@ -575,7 +602,6 @@ class Orchestrator:
             ],
             "davinci": [
                 Path("C:/Program Files/Blackmagic Design/DaVinci Resolve/Resolve.exe"),
-                Path("C:/Program Files/DaVinci Resolve/bin/Resolve.exe"),
             ]
         }
         

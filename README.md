@@ -7,7 +7,7 @@
 ### Prerequisites
 - **Windows 10/11** with NVIDIA GPU (or CPU fallback)
 - **Qt 6.5+** 
-- **Python 3.11+**
+- **Python 3.10**
 - **CMake 3.19+**
 
 ### Installation & Running
@@ -20,9 +20,9 @@
 
 2. **Set up Python environment:**
    ```bash
-   conda create -n vrindaai python=3.11
-   conda activate vrindaai
-   pip install -r requirements.txt
+   conda create -n vrinda_env python=3.10
+   conda activate vrinda_env
+   pip install -r requirements.txt  # (Or reinstall your packages)
    ```
 
 3. **Start the Llama Server** (Terminal 1):
@@ -38,7 +38,7 @@
 
 4. **Start the Memory Service** (Terminal 2):
    ```bash
-   conda activate vrindaai
+   conda activate vrinda_env
    python memory_service.py
    ```
 
@@ -233,7 +233,7 @@ Edit `config/settings.json`:
 {
   "paths": {
     "blender": "C:/Program Files/Blender Foundation/Blender 4.3/blender.exe",
-    "unreal": "C:/Program Files/Epic Games/UE_5.3",
+    "unreal": "C:/Program Files/Epic Games/UE_5.6",
     "davinci": "C:/Program Files/Blackmagic Design/DaVinci Resolve"
   },
   "llm": {

@@ -1,6 +1,6 @@
 """
-VrindaAI - Unreal Engine Wrapper
-Automates game and cinematic creation with UE5
+VrindaAI - Unreal Engine AAA Director Wrapper
+Automates Asset Assembly, Sequencing, and Rendering.
 """
 
 import subprocess
@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 class UnrealEngine:
     """
     Unreal Engine 5 automation engine
-    Handles game development, cinematic production, and scene creation
+    Handles game development, cinematic production, and scene creation.
+    Now enhanced with AAA Director capabilities: Asset Spawning, Sequencing, and Rendering.
     """
     
     def __init__(self, ue_path: Optional[str] = None):
@@ -32,10 +33,15 @@ class UnrealEngine:
         
         self.logger = logging.getLogger(__name__)
         self.editor_exe = Path(self.ue_path) / "Engine/Binaries/Win64/UnrealEditor.exe"
+        # Optional: Store active project path if set to reuse in subsequent calls
+        self.active_project_path: Optional[str] = None
     
     def _find_unreal(self) -> Optional[str]:
         """Find Unreal Engine installation"""
         common_paths = [
+            "C:/Program Files/Epic Games/UE_5.6",
+            "C:/Program Files/Epic Games/UE_5.5",
+            "C:/Program Files/Epic Games/UE_5.4",
             "C:/Program Files/Epic Games/UE_5.3",
             "C:/Program Files/Epic Games/UE_5.2",
             "C:/Program Files/Epic Games/UE_5.1",
@@ -47,7 +53,168 @@ class UnrealEngine:
                 return path
         
         return None
-    
+
+    def set_active_project(self, project_path: str):
+        """Set the active project path for subsequent commands."""
+        self.active_project_path = project_path
+
+    # ==========================================
+    # PHASE 2: ASSET INGESTION & SPAWNING
+    # ==========================================
+
+    def spawn_metahuman(
+        self, 
+        asset_id: str, 
+        location: List[float], 
+        rotation: List[float],
+        project_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Spawns a MetaHuman or Blueprint actor from the project content.
+        Input: Asset path in Content Browser (e.g., '/Game/MetaHumans/Hero/BP_Hero')
+        """
+        script = f"""
+import unreal
+
+asset_path = "{asset_id}"
+location = unreal.Vector({location[0]}, {location[1]}, {location[2]})
+rotation = unreal.Rotator({rotation[0]}, {rotation[1]}, {rotation[2]})
+
+# Load the Blueprint Class
+actor_class = unreal.EditorAssetLibrary.load_blueprint_class(asset_path)
+
+if actor_class:
+    actor = unreal.EditorLevelLibrary.spawn_actor_from_class(actor_class, location, rotation)
+    print(f"Spawned {{asset_path}} at {{location}}")
+else:
+    print(f"Failed to load asset: {{asset_path}}")
+"""
+        return self._execute_automation(project_path or self.active_project_path, script)
+
+    def apply_animation(
+        self, 
+        actor_label: str, 
+        anim_path: str,
+        project_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Applies an animation asset to a Skeletal Mesh Actor in the level.
+        """
+        script = f"""
+import unreal
+
+# Find Actor by label
+actor = unreal.GameplayStatics.get_all_actors_of_class(unreal.EditorLevelLibrary.get_editor_world(), unreal.SkeletalMeshActor)
+target = next((a for a in actor if a.get_actor_label() == "{actor_label}"), None)
+
+if target:
+    anim_asset = unreal.EditorAssetLibrary.load_asset("{anim_path}")
+    if anim_asset:
+        target.skeletal_mesh_component.animation_mode = unreal.AnimationMode.ANIMATION_SINGLE_NODE
+        target.skeletal_mesh_component.animation_data.anim_to_play = anim_asset
+        print(f"Applied animation {{anim_path}} to {{actor_label}}")
+    else:
+        print(f"Failed to load animation: {{anim_path}}")
+else:
+    print(f"Actor not found: {{actor_label}}")
+"""
+        return self._execute_automation(project_path or self.active_project_path, script)
+
+    # ==========================================
+    # PHASE 4: THE SET DIRECTOR (SEQUENCER)
+    # ==========================================
+
+    def create_cinematic_sequence(
+        self, 
+        sequence_name: str, 
+        shot_specs: Optional[List[Dict]] = None,
+        project_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Creates a Level Sequence, adds a camera, and prepares it for recording.
+        """
+        script = f"""
+import unreal
+
+seq_path = "/Game/Cinematics/{sequence_name}"
+asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+# Create the asset
+sequence = asset_tools.create_asset(
+    "{sequence_name}", "/Game/Cinematics", unreal.LevelSequence, unreal.LevelSequenceFactoryNew()
+)
+
+# 1. Create a Cine Camera Actor in the world
+camera_actor = unreal.EditorLevelLibrary.spawn_actor_from_class(unreal.CineCameraActor, unreal.Vector(0,0,100))
+camera_id = sequence.add_possessable(camera_actor)
+
+# 2. Create a Camera Cut Track (Essential for rendering)
+cut_track = sequence.add_master_track(unreal.MovieSceneCameraCutTrack)
+cut_section = cut_track.add_section()
+cut_section.set_range(0, 240) # Default 10 seconds at 24fps
+
+# Bind the camera to the cut track
+# Note: Binding ID syntax in Python API can vary by UE version, this is a standard approach for 5.x
+binding_id = unreal.MovieSceneObjectBindingID()
+binding_id.set_editor_property("guid", camera_id.get_id())
+cut_section.set_camera_binding_id(binding_id)
+
+print(f"Created sequence: {{seq_path}} with Camera Cut")
+"""
+        return self._execute_automation(project_path or self.active_project_path, script)
+
+    # ==========================================
+    # PHASE 5: MOVIE RENDER QUEUE (OUTPUT)
+    # ==========================================
+
+    def render_sequence(
+        self, 
+        sequence_path: str, 
+        output_path: str, 
+        resolution: tuple = (1920, 1080),
+        project_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Triggers the Movie Render Queue to output an image sequence (JPG/EXR).
+        This output is what the FFmpeg engine will stitch together.
+        """
+        # Ensure output path uses forward slashes for Unreal/Python compatibility
+        output_path = output_path.replace("\\", "/")
+        
+        script = f"""
+import unreal
+
+# Setup MRQ Job
+subsystem = unreal.get_editor_subsystem(unreal.MoviePipelineQueueSubsystem)
+queue = subsystem.get_queue()
+queue.delete_all_jobs()
+
+# Create Job
+job = queue.allocate_new_job(unreal.MoviePipelineExecutorJob)
+job.sequence = unreal.SoftObjectPath("{sequence_path}")
+job.map = unreal.SoftObjectPath(unreal.EditorLevelLibrary.get_editor_world().get_path_name())
+
+# Configure Settings
+config = job.get_configuration()
+output_setting = config.find_or_add_setting_by_class(unreal.MoviePipelineOutputSetting)
+output_setting.output_resolution = unreal.IntPoint({resolution[0]}, {resolution[1]})
+output_setting.output_directory = unreal.DirectoryPath("{output_path}")
+output_setting.file_name_format = "frame_{{frame_number}}"
+
+# Output Format: JPG (Fastest for preview/testing)
+config.find_or_add_setting_by_class(unreal.MoviePipelineImageSequenceOutput_JPG)
+
+# Render Execution
+# We use PIE Executor for immediate feedback in this headless context
+executor = unreal.MoviePipelinePIEExecutor()
+subsystem.render_queue_with_executor(unreal.MoviePipelinePIEExecutor)
+print("Render started via MRQ...")
+"""
+        return self._execute_automation(project_path or self.active_project_path, script)
+
+    # ==========================================
+    # LEGACY / CORE METHODS (Maintained)
+    # ==========================================
+
     def create_project(
         self,
         project_name: str,
@@ -56,14 +223,6 @@ class UnrealEngine:
     ) -> Dict[str, Any]:
         """
         Create new Unreal Engine project
-        
-        Args:
-            project_name: Name of the project
-            project_type: Type - "game", "cinematic", "architecture"
-            quality: Quality level - "low", "medium", "high", "ultra"
-            
-        Returns:
-            Project creation result with path and metadata
         """
         self.logger.info(f"Creating Unreal {project_type} project: {project_name}")
         
@@ -85,6 +244,7 @@ class UnrealEngine:
                 json.dump(project_file, f, indent=2)
             
             self.logger.info(f"Project created at: {uproject_path}")
+            self.active_project_path = str(uproject_path)
             
             return {
                 "status": "success",
@@ -105,18 +265,7 @@ class UnrealEngine:
         description: str,
         assets: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """
-        Create new level/scene in project
-        
-        Args:
-            project_path: Path to UE project
-            scene_name: Name of the scene
-            description: Scene description
-            assets: List of assets to include
-            
-        Returns:
-            Scene creation result
-        """
+        """Create new level/scene in project"""
         self.logger.info(f"Creating scene: {scene_name}")
         
         try:
@@ -140,7 +289,7 @@ class UnrealEngine:
         location: Optional[List[float]] = None,
         rotation: Optional[List[float]] = None
     ) -> Dict[str, Any]:
-        """Add actor to scene"""
+        """Add actor to scene (Legacy method, spawn_metahuman is preferred for complex assets)"""
         location = location or [0, 0, 0]
         rotation = rotation or [0, 0, 0]
         
@@ -155,7 +304,6 @@ actor = unreal.EditorLevelLibrary.spawn_actor_from_class(
 actor.set_actor_label("{actor_name}")
 print(f"Actor created: {{actor.get_actor_label()}}")
 """
-        
         return self._execute_automation(project_path, script)
     
     def add_material(
@@ -190,7 +338,6 @@ if target_actor and hasattr(target_actor, 'get_owned_components'):
                 component.set_material(0, material)
                 print(f"Material applied to {{target_actor.get_actor_label()}}")
 """
-        
         return self._execute_automation("", script)
     
     def add_animation(
@@ -199,7 +346,7 @@ if target_actor and hasattr(target_actor, 'get_owned_components'):
         animation_path: str,
         loop: bool = False
     ) -> Dict[str, Any]:
-        """Add animation to actor"""
+        """Add animation to actor (Simple playback)"""
         script = f"""
 import unreal
 
@@ -218,7 +365,6 @@ for actor in actors:
             component.play_animation(animation, looping={loop})
             print(f"Animation applied: {{animation.get_name()}}")
 """
-        
         return self._execute_automation("", script)
     
     def setup_camera(
@@ -251,7 +397,6 @@ camera_comp.set_current_focal_length({fov})
 
 print("Camera setup complete")
 """
-        
         return self._execute_automation(project_path, script)
     
     def setup_lighting(
@@ -278,7 +423,6 @@ sky = unreal.EditorLevelLibrary.spawn_actor_from_class(
 
 print("Lighting setup complete")
 """
-        
         return self._execute_automation(project_path, script)
     
     def setup_postprocess(
@@ -313,7 +457,6 @@ settings.motion_blur_amount = {postprocess_config.get('motion_blur', 0.5)}
 
 print("Post-processing setup complete")
 """
-        
         return self._execute_automation(project_path, script)
     
     def compile_project(
@@ -414,18 +557,10 @@ print("Post-processing setup complete")
                 "Mac"
             ],
             "Plugins": [
-                {
-                    "Name": "Navmesh",
-                    "Enabled": True
-                },
-                {
-                    "Name": "Sequencer",
-                    "Enabled": True
-                },
-                {
-                    "Name": "CinematicCamera",
-                    "Enabled": True
-                }
+                { "Name": "Navmesh", "Enabled": True },
+                { "Name": "Sequencer", "Enabled": True },
+                { "Name": "CinematicCamera", "Enabled": True },
+                { "Name": "MovieRenderPipeline", "Enabled": True } # Needed for MRQ
             ]
         }
     
@@ -458,28 +593,23 @@ for asset in assets:
 """
         return script
     
-    def _execute_automation(self, project_path: str, script: str) -> Dict[str, Any]:
+    def _execute_automation(self, project_path: Optional[str], script: str) -> Dict[str, Any]:
         """Execute automation script"""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             f.write(script)
             script_path = f.name
         
         try:
+            cmd = [str(self.editor_exe)]
+            
             if project_path:
-                cmd = [
-                    str(self.editor_exe),
-                    str(project_path),
-                    "-run=PythonScript",
-                    f"-Script={script_path}",
-                    "-Unattended"
-                ]
-            else:
-                cmd = [
-                    str(self.editor_exe),
-                    "-run=PythonScript",
-                    f"-Script={script_path}",
-                    "-Unattended"
-                ]
+                cmd.append(str(project_path))
+            
+            cmd.extend([
+                "-run=PythonScript",
+                f"-Script={script_path}",
+                "-Unattended"
+            ])
             
             self.logger.info("Executing UE automation script")
             
