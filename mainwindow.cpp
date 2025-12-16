@@ -245,55 +245,53 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_modelManager, &ModelManager::startHealthCheck, this, [this](int port, std::function<void()> onReadyCallback) {
         qDebug() << "MAINWINDOW: Received Health Check request for port" << port;
 
-        // Use a pointer to track if we've already finished to avoid double-calling
+        // 1. Map the port to the correct Agent Role and Model Name
+        QString modelName = "AI Brain";
+        QString role = "";
+
+        if (port == 8080) { modelName = "Phimini"; role = "Researcher"; }
+        else if (port == 8081) { modelName = "QwenCoder"; role = "Manager"; }
+        else if (port == 8082) { modelName = "LLaVA"; role = "Designer"; }
+        else if (port == 8083) { modelName = "Mistral"; role = "Planner"; }
+
+        // 2. Find the correct Chat Area widget using your existing roleToChatBox map
+        QTextEdit* targetChat = roleToChatBox.value(role, nullptr);
+        
+        // If we can't find the specific agent box, fallback to ManagerChatArea as a system log
+        if (!targetChat) targetChat = ui->ManagerChatArea;
+
+        if (targetChat) {
+            targetChat->append(QString("<br><span style='color:#7f8c8d;'>🔄 <i>System: Swapping brain to <b>%1</b>...</i></span>").arg(modelName));
+        }
+
         auto alreadyTriggered = std::make_shared<bool>(false);
-
         QTimer* pollTimer = new QTimer(this);
-        pollTimer->setInterval(2000); // Check every 2 seconds
+        pollTimer->setInterval(2000); 
 
-        connect(pollTimer, &QTimer::timeout, this, [this, port, pollTimer, onReadyCallback, alreadyTriggered]() {
+        connect(pollTimer, &QTimer::timeout, this, [this, port, pollTimer, onReadyCallback, alreadyTriggered, modelName, targetChat]() {
             if (*alreadyTriggered) return;
 
-            QString url = QString("http://127.0.0.1:%1/health").arg(port);
-            QNetworkRequest req((QUrl(url)));
-            
-            // Use the main network manager to ensure the request survives the lambda scope
+            QNetworkRequest req((QUrl(QString("http://127.0.0.1:%1/health").arg(port))));
             QNetworkReply *reply = m_networkManager->get(req);
 
-            connect(reply, &QNetworkReply::finished, this, [this, reply, pollTimer, onReadyCallback, alreadyTriggered, port]() {
-                if (*alreadyTriggered) {
-                    reply->deleteLater();
-                    return;
-                }
-
-                bool isReady = false;
+            connect(reply, &QNetworkReply::finished, this, [this, reply, pollTimer, onReadyCallback, alreadyTriggered, port, modelName, targetChat]() {
                 if (reply->error() == QNetworkReply::NoError) {
                     QByteArray resp = reply->readAll();
                     QString s = QString::fromUtf8(resp).toLower();
-                    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-
-                    // Llama.cpp returns {"status": "ok"} or simply 200 OK
-                    if (s.contains("ok") || statusCode == 200) {
-                        isReady = true;
+                    if (s.contains("ok") || reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200) {
+                        
+                        qDebug() << "HEALTH POLLER: Port" << port << "is READY.";
+                        *alreadyTriggered = true;
+                        pollTimer->stop();
+                        pollTimer->deleteLater();
+                        
+                        if (targetChat) {
+                            targetChat->append(QString("<span style='color:#27ae60;'>✅ <b>%1</b> is online.</span>").arg(modelName));
+                        }
+                        
+                        if (onReadyCallback) onReadyCallback();
                     }
                 }
-
-                if (isReady) {
-                    qDebug() << "HEALTH POLLER: Port" << port << "is READY. Stopping timer.";
-                    *alreadyTriggered = true;
-                    
-                    pollTimer->stop();
-                    pollTimer->deleteLater();
-                    
-                    // Execute the callback in ModelManager to reset m_isCurrentlySwapping
-                    if (onReadyCallback) {
-                        onReadyCallback();
-                    }
-                } else {
-                    // Optional: Log that we are still waiting
-                    qDebug() << "HEALTH POLLER: Port" << port << "not ready yet... retrying.";
-                }
-
                 reply->deleteLater();
             });
         });

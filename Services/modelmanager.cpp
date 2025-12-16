@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QDebug>
 #include <QVariantMap>
+#include <QTimer>
 
 ModelManager::ModelManager(QObject *parent)
     : QObject(parent), m_activeModelPort(0), m_isCurrentlySwapping(false)
@@ -83,43 +84,86 @@ void ModelManager::sendRequest(const QString &taskId, const QString &role, const
 void ModelManager::processPendingRequestQueue() {
     if (m_pendingRequests.isEmpty()) return;
 
-    QQueue<PendingRequest> failedQueue;
+    QQueue<PendingRequest> keepInQueue;
+    int staggerDelay = 0;
+
     while (!m_pendingRequests.isEmpty()) {
         PendingRequest req = m_pendingRequests.dequeue();
+        
         if (req.model == m_activeModelName) {
-            sendNetworkRequest(req.taskId, req.role, req.prompt, req.model, req.port);
+            // Stagger multiple requests to the same model so they don't hit the server all at once
+            QTimer::singleShot(staggerDelay, this, [=]() {
+                sendNetworkRequest(req.taskId, req.role, req.prompt, req.model, req.port);
+            });
+            staggerDelay += 1000; // 1 second gap between queued tasks
         } else {
-            failedQueue.enqueue(req);
+            keepInQueue.enqueue(req);
         }
     }
-    m_pendingRequests = failedQueue;
+    m_pendingRequests = keepInQueue;
 
-    // If there's another model transition needed, start it
-    if (!m_pendingRequests.isEmpty()) {
-        PendingRequest next = m_pendingRequests.head();
-        sendRequest(next.taskId, next.role, next.prompt);
+    // Trigger next swap if needed after all current-model tasks are dispatched
+    if (!m_pendingRequests.isEmpty() && !m_isCurrentlySwapping) {
+        QTimer::singleShot(staggerDelay + 500, this, [this]() {
+            if (!m_pendingRequests.isEmpty()) {
+                PendingRequest next = m_pendingRequests.head();
+                this->sendRequest(next.taskId, next.role, next.prompt);
+            }
+        });
     }
 }
 
 void ModelManager::sendNetworkRequest(const QString &taskId, const QString &role, const QString &prompt, const QString &modelName, int port) {
-    QString urlString = QString("http://127.0.0.1:%1/v1/chat/completions").arg(port);
-    QNetworkRequest request(urlString);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    // 1. Add a 500ms safety delay. 
+    // This gives the Windows Socket layer and the LLM engine time to "settle" after a swap.
+    QTimer::singleShot(500, this, [=]() {
+        QString urlString = QString("http://127.0.0.1:%1/v1/chat/completions").arg(port);
+        QNetworkRequest request(urlString);
+        request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
-    QJsonObject payload;
-    payload["model"] = modelName;
-    QJsonArray messages;
-    messages.append(QJsonObject{{"role", "system"}, {"content", "You are the " + role + " agent."}});
-    messages.append(QJsonObject{{"role", "user"}, {"content", prompt}});
-    payload["messages"] = messages;
+        // Set a longer timeout for these complex agent requests
+        request.setTransferTimeout(60000); // 60 seconds
 
-    QVariantMap requestData;
-    requestData["role"] = role;
-    requestData["taskId"] = taskId;
-    requestData["modelUsed"] = modelName;
-    request.setAttribute(QNetworkRequest::User, requestData);
+        QJsonObject payload;
+        payload["model"] = modelName;
+        QJsonArray messages;
+        messages.append(QJsonObject{{"role", "system"}, {"content", "You are the " + role + " agent."}});
+        messages.append(QJsonObject{{"role", "user"}, {"content", prompt}});
+        payload["messages"] = messages;
+        payload["temperature"] = 0.7;
 
-    m_networkManager->post(request, QJsonDocument(payload).toJson());
+        QVariantMap requestData;
+        requestData["role"] = role;
+        requestData["taskId"] = taskId;
+        requestData["modelUsed"] = modelName;
+        // Keep track of retry count to prevent infinite loops
+        int retries = requestData.value("retryCount", 0).toInt();
+        request.setAttribute(QNetworkRequest::User, requestData);
+
+        QByteArray jsonData = QJsonDocument(payload).toJson();
+        QNetworkReply* reply = m_networkManager->post(request, jsonData);
+
+        // 2. Enhanced Error Handling for the Reply
+        connect(reply, &QNetworkReply::finished, this, [this, reply, taskId, role, prompt, modelName, port, retries]() {
+            if (reply->error() == QNetworkReply::ConnectionRefusedError || 
+                reply->error() == QNetworkReply::RemoteHostClosedError) {
+                
+                if (retries < 3) {
+                    qDebug() << "⚠️ Network retry" << (retries + 1) << "for role" << role << "on port" << port;
+                    reply->deleteLater();
+                    
+                    // Wait 2 seconds before retrying to allow server to stabilize
+                    QTimer::singleShot(2000, this, [=]() {
+                        // Re-trigger the request but increment retry count manually
+                        this->sendNetworkRequest(taskId, role, prompt, modelName, port);
+                    });
+                    return;
+                }
+            }
+            // If no connection error, the normal finished signal (onCompletionReplyFinished) 
+            // will handle the data or report a permanent failure.
+        });
+    });
 }
 
 void ModelManager::onCompletionReplyFinished(QNetworkReply *reply) {
