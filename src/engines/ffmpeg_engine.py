@@ -178,3 +178,83 @@ class FFmpegEngine:
 
 def create_ffmpeg_engine() -> FFmpegEngine:
     return FFmpegEngine()
+
+
+# --- NEW ENTRY POINT FOR C++ CALL ---
+if __name__ == "__main__":
+    import argparse
+    import json
+    import sys
+    
+    # Initialize basic logging to see output in C++ QProcess
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    
+    parser = argparse.ArgumentParser(description="FFmpeg Engine Wrapper for VrindaAI.")
+    parser.add_argument("--job_manifest", required=True, help="Path to the JSON job manifest file.")
+    args = parser.parse_args()
+
+    try:
+        # Load the JSON job manifest
+        with open(args.job_manifest, 'r') as f:
+            job_data = json.load(f)
+
+        engine = create_ffmpeg_engine()
+        
+        # Determine the command type from the manifest
+        command = job_data.get("command", "concat_clips") # Default to concatenation
+        job_args = job_data.get("args", {})
+
+        if command == "concat_clips":
+            clip_paths = job_args.get("clip_paths", [])
+            output_file = job_args.get("output_file")
+            
+            if not clip_paths or not output_file:
+                logger.error("Manifest missing 'clip_paths' or 'output_file' for concat_clips.")
+                result = {"status": "failed", "error": "Missing required arguments in job manifest."}
+            else:
+                result = engine.concat_clips(clip_paths, output_file)
+                
+        elif command == "create_video_from_sequence":
+            pattern = job_args.get("image_sequence_pattern")
+            output_file = job_args.get("output_file")
+            framerate = job_args.get("framerate", 24)
+            audio_file = job_args.get("audio_file")
+            quality = job_args.get("quality", "medium")
+            
+            if not pattern or not output_file:
+                 logger.error("Manifest missing 'image_sequence_pattern' or 'output_file' for create_video_from_sequence.")
+                 result = {"status": "failed", "error": "Missing required arguments in job manifest."}
+            else:
+                 result = engine.create_video_from_sequence(pattern, output_file, framerate, audio_file, quality)
+
+        elif command == "apply_background_music":
+            video = job_args.get("video_file")
+            music = job_args.get("music_file")
+            output = job_args.get("output_file")
+            
+            if not video or not music or not output:
+                 logger.error("Manifest missing file paths for apply_background_music.")
+                 result = {"status": "failed", "error": "Missing required arguments in job manifest."}
+            else:
+                 result = engine.apply_background_music(video, music, output)
+        
+        else:
+            logger.error(f"Unknown command in job manifest: {command}")
+            result = {"status": "failed", "error": f"Unknown command: {command}"}
+
+        # Print final result status as JSON 
+        print(json.dumps(result))
+        
+        if result["status"] == "success":
+            exit(0)
+        else:
+            # Print error to stderr for QProcess to capture as error output
+            print(f"FFMPEG_JOB_FAILED: {result.get('error', 'Unknown failure')}", file=sys.stderr)
+            exit(1)
+
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        exit(1)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        exit(1)

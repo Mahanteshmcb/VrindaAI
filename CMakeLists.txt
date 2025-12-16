@@ -19,7 +19,7 @@ qt_standard_project_setup()
 
 # ✅ Define sources
 qt_add_executable(VrindaAI
-    WIN32 MACOSX_BUNDLE
+    # WIN32 MACOSX_BUNDLE
     # --- Main Application Files ---
     main.cpp
     mainwindow.cpp
@@ -37,14 +37,26 @@ qt_add_executable(VrindaAI
     Services/projectmanager.h
     Services/vectordatabasemanager.cpp
     Services/vectordatabasemanager.h
-    
-    # --- NEW: Job Manifest & Workflow Services ---
+    Services/autonomousworkflowengine.cpp
+    Services/autonomousworkflowengine.h
+    Services/cinematicproductionworkflow.cpp
+    Services/cinematicproductionworkflow.h
     Services/jobmanifestmanager.cpp
     Services/jobmanifestmanager.h
     Services/workflowexecutor.cpp
     Services/workflowexecutor.h
     Services/headlessexecutor.cpp
     Services/headlessexecutor.h
+    Services/gameproductionworkflow.cpp
+    Services/gameproductionworkflow.h
+    Services/intelligentprojectplanner.cpp
+    Services/intelligentprojectplanner.h
+    Services/llmrequestprocessor.cpp
+    Services/reportgenerator.cpp
+    Services/reportgenerator.h
+    Services/workflowexecutor.cpp
+    Services/workflowexecutor.h
+    
 
     # --- Controllers ---
     Controllers/projectworkflow.cpp
@@ -67,6 +79,13 @@ qt_add_executable(VrindaAI
     Controllers/validatorcontroller.h
     Controllers/llamaservercontroller.cpp
     Controllers/llamaservercontroller.h
+    Controllers/ffmpegcontroller.cpp
+    Controllers/ffmpegcontroller.h
+    Controllers/modelingcontroller.cpp
+    Controllers/modelingcontroller.h
+    Controllers/texturingcontroller.cpp
+    Controllers/texturingcontroller.h
+
 
     # --- Utilities ---
     Utils/promptsanitizer.cpp

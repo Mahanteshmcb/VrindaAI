@@ -31,8 +31,8 @@ QString JobManifestManager::getEngineScriptName(Engine engine) const {
             return "blender_master.py";
         case Engine::Unreal:
             return "unreal_master.py";
-        case Engine::DaVinci:
-            return "davinci_master.py";
+        case Engine::FFmpeg: // <<< FIX 1: Replaced DaVinci with FFmpeg
+            return "ffmpeg_engine.py"; // <<< Updated script name
         default:
             return "";
     }
@@ -70,8 +70,8 @@ QJsonObject JobManifestManager::initializeManifest(const JobConfig& config) {
         case Engine::Unreal:
             manifest["engine"] = "unreal";
             break;
-        case Engine::DaVinci:
-            manifest["engine"] = "davinci";
+        case Engine::FFmpeg: // <<< FIX 2: Replaced DaVinci with FFmpeg
+            manifest["engine"] = "ffmpeg";
             break;
     }
     
@@ -299,29 +299,12 @@ bool JobManifestManager::executeJob(const QString& jobPath, Engine engine) {
                 break;
             }
             
-            case Engine::DaVinci: {
-                // Try to find DaVinci Resolve executable
-                QString davinciExe = "DaVinciResolve.exe";
-                
-                // Try common DaVinci Resolve installation paths
-                QStringList davinciPaths = {
-                    "DaVinciResolve.exe",  // Try PATH first
-                    "Resolve.exe",  // Alternative name
-                    "C:/Program Files/Blackmagic Design/DaVinci Resolve/Resolve.exe",
-                    "C:/Program Files (x86)/Blackmagic Design/DaVinci Resolve/Resolve.exe",
-                    "C:/Program Files/Blackmagic Design/DaVinci Resolve/DaVinciResolve.exe"
-                };
-                
-                for (const QString& path : davinciPaths) {
-                    if (QFile::exists(path)) {
-                        davinciExe = path;
-                        break;
-                    }
-                }
-                
-                // Launch DaVinci with Python script
-                arguments << "-nogui" << "-script" << scriptPath << jobPath;
-                process.start(davinciExe, arguments);
+            case Engine::FFmpeg: { // <<< FFmpeg and updated logic
+                // The FFmpeg execution is handled by running the Python script
+                QString pythonExe = "python";
+                // The Python script expects the job manifest path as an argument
+                arguments << scriptPath << "--job_manifest" << jobPath; 
+                process.start(pythonExe, arguments);
                 break;
             }
         }
@@ -335,6 +318,41 @@ bool JobManifestManager::executeJob(const QString& jobPath, Engine engine) {
         return true;
     } catch (const std::exception& e) {
         qWarning() << "Exception executing job:" << e.what();
+        return false;
+    }
+}
+
+bool JobManifestManager::executeJobFromObject(const QJsonObject& jobManifest) {
+    try {
+        // 1. Determine the engine to get the correct file extension/naming
+        QString engineStr = jobManifest["engine"].toString();
+        Engine engine;
+        if (engineStr == "blender") engine = Engine::Blender;
+        else if (engineStr == "unreal") engine = Engine::Unreal;
+        else engine = Engine::FFmpeg; // Default to FFmpeg for post-production
+
+        // 2. Create a temporary file path for the manifest
+        QString tempDir = QDir::tempPath();
+        QString jobId = jobManifest["job_id"].toString();
+        if (jobId.isEmpty()) jobId = generateJobId();
+        
+        QString tempFilePath = tempDir + "/" + jobId + "_manifest.json";
+
+        // 3. Save the JSON object to the temporary file
+        if (!saveManifest(jobManifest, tempFilePath)) {
+            qWarning() << "Failed to save temporary manifest for execution:" << tempFilePath;
+            return false;
+        }
+
+        // 4. Execute the job using the existing file-based method
+        bool success = executeJob(tempFilePath, engine);
+        
+        // Note: We don't delete the temp file immediately because 
+        // QProcess starts asynchronously. The engine scripts will handle the manifest.
+        
+        return success;
+    } catch (const std::exception& e) {
+        qWarning() << "Exception in executeJobFromObject:" << e.what();
         return false;
     }
 }

@@ -111,7 +111,7 @@ bool AutonomousWorkflowEngine::generateCinematicWorkflow(const ProjectRequest& r
     outPlan.workflowId = "WORKFLOW_CINEMA_" + QString::number(QDateTime::currentMSecsSinceEpoch());
     outPlan.projectName = request.projectName;
     outPlan.projectType = ProjectType::CinematicMovie;
-    outPlan.description = "Professional cinematic production: Blender → DaVinci";
+    outPlan.description = "Professional cinematic production: Blender → FFmpeg"; // <<< MODIFIED
     
     QJsonArray stages;
     int totalMinutes = 0;
@@ -136,24 +136,24 @@ bool AutonomousWorkflowEngine::generateCinematicWorkflow(const ProjectRequest& r
         totalMinutes += 120;
     }
     
-    // Stage 2: DaVinci Composition & Color Grading
+    // Stage 2: FFmpeg Composition & Encoding (Replaces DaVinci) // <<< MODIFIED
     if (request.scope == ProductionScope::Complete || 
         request.scope == ProductionScope::PostProduction) {
         
-        QJsonObject davinciStage;
-        davinciStage["stage_id"] = "DAVINCI_001";
-        davinciStage["stage_name"] = "Color Grading & Composition";
-        davinciStage["engine"] = "davinci";
-        davinciStage["description"] = "Apply color grading, effects, and compose final video";
-        davinciStage["estimated_minutes"] = 45;
-        davinciStage["priority"] = 2;
-        davinciStage["depends_on"] = "BLEND_001";
+        QJsonObject ffmpegStage;
+        ffmpegStage["stage_id"] = "FFMPEG_001"; // <<< MODIFIED
+        ffmpegStage["stage_name"] = "Video Composition & Encoding"; // <<< MODIFIED
+        ffmpegStage["engine"] = "ffmpeg"; // <<< MODIFIED
+        ffmpegStage["description"] = "Stitch image sequence, mix audio, and encode final video using FFmpeg"; // <<< MODIFIED
+        ffmpegStage["estimated_minutes"] = 45;
+        ffmpegStage["priority"] = 2;
+        ffmpegStage["depends_on"] = "BLEND_001";
         
-        // Create job manifest for DaVinci
-        QJsonObject davinciJob = createDaVinciPostJob(request, request.description);
-        davinciStage["job_manifest"] = davinciJob;
+        // Create job manifest for FFmpeg
+        QJsonObject ffmpegJob = createFfmpegPostJob(request, request.description); // <<< MODIFIED
+        ffmpegStage["job_manifest"] = ffmpegJob;
         
-        stages.append(davinciStage);
+        stages.append(ffmpegStage);
         totalMinutes += 45;
     }
     
@@ -231,7 +231,7 @@ bool AutonomousWorkflowEngine::generateCinematicTrailerWorkflow(const ProjectReq
     outPlan.workflowId = "WORKFLOW_TRAILER_" + QString::number(QDateTime::currentMSecsSinceEpoch());
     outPlan.projectName = request.projectName;
     outPlan.projectType = ProjectType::CinematicMovie;
-    outPlan.description = "Game cinematic trailer: Blender/Unreal → DaVinci → Final Video";
+    outPlan.description = "Game cinematic trailer: Blender/Unreal → FFmpeg → Final Video"; // <<< MODIFIED
     
     QJsonArray stages;
     int totalMinutes = 0;
@@ -251,17 +251,17 @@ bool AutonomousWorkflowEngine::generateCinematicTrailerWorkflow(const ProjectReq
     stages.append(cinemaStage);
     totalMinutes += 150;
     
-    // Stage 2: Post-production in DaVinci
+    // Stage 2: Post-production in FFmpeg (Replaces DaVinci) // <<< MODIFIED
     QJsonObject postStage;
-    postStage["stage_id"] = "DAVINCI_002";
-    postStage["stage_name"] = "Final Composition & Export";
-    postStage["engine"] = "davinci";
-    postStage["description"] = "Color grade, add effects, and export final trailer";
+    postStage["stage_id"] = "FFMPEG_002"; // <<< MODIFIED
+    postStage["stage_name"] = "Final Composition & Export (FFmpeg)"; // <<< MODIFIED
+    postStage["engine"] = "ffmpeg"; // <<< MODIFIED
+    postStage["description"] = "Stitch and encode final trailer using FFmpeg"; // <<< MODIFIED
     postStage["estimated_minutes"] = 60;
     postStage["priority"] = 2;
     postStage["depends_on"] = "CINEMA_001";
     
-    QJsonObject postJob = createDaVinciPostJob(request, "Finalize game trailer");
+    QJsonObject postJob = createFfmpegPostJob(request, "Finalize game trailer"); // <<< MODIFIED
     postStage["job_manifest"] = postJob;
     
     stages.append(postStage);
@@ -325,7 +325,10 @@ bool AutonomousWorkflowEngine::executeWorkflowStep(const WorkflowPlan& plan, int
     
     // Execute the job using JobManifestManager
     QString jobId = stage["stage_id"].toString();
-    bool success = m_manifestManager.executeJobFromObject(jobManifest);
+    
+    // The previous error "class JobManifestManager has no member executeJobFromObject" is fixed 
+    // by adding the declaration in jobmanifestmanager.h.
+    bool success = m_manifestManager.executeJobFromObject(jobManifest); // <<< FIXED
     
     if (success) {
         emit stageProgress(100);
@@ -351,7 +354,9 @@ QJsonObject AutonomousWorkflowEngine::createBlenderSceneJob(const ProjectRequest
                                                            const QString& sceneDescription)
 {
     QJsonObject job;
-    job["job_id"] = "BLENDER_" + req.projectName.replace(" ", "_");
+    // Fix: create non-const copy for replace call
+    QString projectName = req.projectName; 
+    job["job_id"] = "BLENDER_" + projectName.replace(' ', '_'); // <<< FIXED
     job["engine"] = "blender";
     job["job_type"] = "render_scene";
     job["description"] = sceneDescription;
@@ -393,7 +398,9 @@ QJsonObject AutonomousWorkflowEngine::createUnrealGameJob(const ProjectRequest& 
                                                          const QString& gameDescription)
 {
     QJsonObject job;
-    job["job_id"] = "UNREAL_" + req.projectName.replace(" ", "_");
+    // Fix: create non-const copy for replace call
+    QString projectName = req.projectName; 
+    job["job_id"] = "UNREAL_" + projectName.replace(' ', '_'); // <<< FIXED
     job["engine"] = "unreal";
     job["job_type"] = "game_development";
     job["description"] = gameDescription;
@@ -432,37 +439,35 @@ QJsonObject AutonomousWorkflowEngine::createUnrealGameJob(const ProjectRequest& 
     return job;
 }
 
-QJsonObject AutonomousWorkflowEngine::createDaVinciPostJob(const ProjectRequest& req,
+QJsonObject AutonomousWorkflowEngine::createFfmpegPostJob(const ProjectRequest& req, // <<< RENAMED
                                                           const QString& postDescription)
 {
     QJsonObject job;
-    job["job_id"] = "DAVINCI_" + req.projectName.replace(" ", "_");
-    job["engine"] = "davinci";
-    job["job_type"] = "color_grading_export";
+    // Fix: create non-const copy for replace call
+    QString projectName = req.projectName;
+    job["job_id"] = "FFMPEG_" + projectName.replace(' ', '_'); // <<< MODIFIED & FIXED
+    job["engine"] = "ffmpeg"; // <<< MODIFIED
+    job["job_type"] = "sequence_to_video"; // <<< NEW job type
     job["description"] = postDescription;
     
-    QJsonObject timeline;
-    timeline["name"] = req.projectName;
-    timeline["resolution_x"] = req.resolutionWidth;
-    timeline["resolution_y"] = req.resolutionHeight;
-    timeline["frame_rate"] = req.fps;
+    // FFmpeg specific arguments to be read by the Python script
+    QJsonObject job_args;
+    job_args["command"] = "create_video_from_sequence";
+    // Assuming blender output path for stitching
+    job_args["image_sequence_pattern"] = req.outputPath + "/renders/render_%04d.exr"; 
+    job_args["output_file"] = req.outputPath + "/final/" + projectName + ".mp4";
+    job_args["framerate"] = req.fps;
+    job_args["quality"] = "high";
     
-    QJsonObject colorGrading;
-    colorGrading["contrast"] = 1.1;
-    colorGrading["saturation"] = 1.15;
-    colorGrading["temperature"] = 5600;
-    timeline["color_grading"] = colorGrading;
-    
-    job["timeline"] = timeline;
+    job["job_args"] = job_args; // Embed arguments in a generic "job_args" field
     
     QJsonObject output;
     output["path"] = req.outputPath + "/final";
     output["format"] = "mp4_h264";
-    output["bitrate"] = "15Mbps";
     job["output"] = output;
     
     return job;
-}
+} // <<< RENAMED function end
 
 bool AutonomousWorkflowEngine::validateJobManifest(const QJsonObject& job)
 {

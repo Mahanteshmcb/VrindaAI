@@ -13,19 +13,18 @@
 /**
  * @class JobManifestManager
  * @brief Manages the creation, parsing, and execution of VrindaAI Job Manifests (JSON)
- * 
- * This class handles:
+ * * This class handles:
  * - Creation of job tickets from task descriptions
  * - Validation of job manifests against schema
  * - Serialization to JSON files
- * - Execution of jobs via external engines (Blender, Unreal, DaVinci)
+ * - Execution of jobs via external engines (Blender, Unreal, FFmpeg) // MODIFIED
  */
 class JobManifestManager {
 public:
     enum class Engine {
         Blender,
         Unreal,
-        DaVinci
+        FFmpeg // <<< MODIFIED: Replaced DaVinci
     };
 
     struct JobConfig {
@@ -94,6 +93,12 @@ public:
      * Returns true if execution started successfully
      */
     bool executeJob(const QString& jobPath, Engine engine);
+
+    /**
+     * Execute job from a JSON object manifest
+     * Returns true if execution started successfully
+     */
+    bool executeJobFromObject(const QJsonObject& jobManifest); // <<< ADDED to fix compilation
 
     /**
      * Get unique job ID

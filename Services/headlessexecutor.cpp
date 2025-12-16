@@ -62,15 +62,15 @@ int HeadlessExecutor::executeJobFile(const QString& jobFilePath) {
         }
         
         // Determine engine and execute
-        QString engineStr = manifest["engine"].toString();
+        QString engineStr = manifest["engine"].toString().toLower();
         JobManifestManager::Engine engine;
         
         if (engineStr == "blender") {
             engine = JobManifestManager::Engine::Blender;
         } else if (engineStr == "unreal") {
             engine = JobManifestManager::Engine::Unreal;
-        } else if (engineStr == "davinci") {
-            engine = JobManifestManager::Engine::DaVinci;
+        } else if (engineStr == "ffmpeg" || engineStr == "davinci") { // <<< FIXED: Support new FFmpeg and legacy DaVinci strings
+            engine = JobManifestManager::Engine::FFmpeg;
         } else {
             logMessage("ERROR: Unknown engine: " + engineStr.toStdString());
             return 1;
@@ -85,7 +85,7 @@ int HeadlessExecutor::executeJobFile(const QString& jobFilePath) {
         
         if (!manager.executeJob(jobFilePath, engine)) {
             logMessage("ERROR: manager.executeJob returned false");
-            logMessage("This may indicate: Blender/Unreal/Python not in PATH, or process failed to start");
+            logMessage("This may indicate: Blender/Unreal/Python/FFmpeg not in PATH, or process failed to start");
             return 1;
         }
         
@@ -202,3 +202,4 @@ void HeadlessExecutor::onJobError(const QString& errorMessage) {
     std::cerr << "[ERROR] Job error: " << errorMessage.toStdString() << std::endl;
     m_isRunning = false;
 }
+

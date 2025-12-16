@@ -4,6 +4,7 @@
 // Core Qt
 #include <QMainWindow>
 #include <QMap>
+#include <QNetworkAccessManager>
 
 // All modularized components
 #include "Services/modelmanager.h"
@@ -23,6 +24,7 @@
 #include "Controllers/animationcontroller.h"
 #include "Controllers/validatorcontroller.h"
 #include "Controllers/llamaservercontroller.h"
+#include "Controllers/ffmpegcontroller.h"
 
 class QTextEdit;
 class QPushButton;
@@ -77,8 +79,10 @@ private:
     AnimationController *m_animationController;
     ValidatorController *m_validatorController;
     LlamaServerController *m_llamaServerController;
+    FfmpegController *m_ffmpegController;
 
 
+    QNetworkAccessManager* m_networkManager;
     DatabaseManager *m_globalDbManager;
     ReportGenerator *m_globalReportGenerator;
 

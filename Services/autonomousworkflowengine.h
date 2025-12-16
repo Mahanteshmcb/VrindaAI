@@ -12,18 +12,16 @@
 /**
  * @class AutonomousWorkflowEngine
  * @brief Converts natural language requests to complete workflows
- * 
- * This is the "Puppet Master" that:
+ * * This is the "Puppet Master" that:
  * 1. Takes user requests (text or structured input)
  * 2. Uses LLM to understand intent and requirements
- * 3. Generates job manifests for Blender, Unreal, DaVinci
+ * 3. Generates job manifests for Blender, Unreal, FFmpeg // <<< MODIFIED
  * 4. Orchestrates execution across all tools
  * 5. Returns final outputs (movies or game assets)
- * 
- * Supported Workflows:
- * - Cinema Production: Concept → Blender Render → DaVinci Composition → Movie
+ * * Supported Workflows:
+ * - Cinema Production: Concept → Blender Render → FFmpeg Composition → Movie // <<< MODIFIED
  * - Game Production: Concept → Unreal Development → Game Assets → Executable
- * - Mixed: Blender → Unreal → DaVinci (cinematic trailers for games)
+ * - Mixed: Blender → Unreal → FFmpeg (cinematic trailers for games) // <<< MODIFIED
  */
 class AutonomousWorkflowEngine : public QObject {
     Q_OBJECT
@@ -145,8 +143,7 @@ private:
     // Workflow generation helpers
     QJsonObject createBlenderSceneJob(const ProjectRequest& req, const QString& sceneDescription);
     QJsonObject createUnrealGameJob(const ProjectRequest& req, const QString& gameDescription);
-    QJsonObject createDaVinciPostJob(const ProjectRequest& req, const QString& postDescription);
-
+    QJsonObject createFfmpegPostJob(const ProjectRequest& req, const QString& postDescription);
     // Job validation
     bool validateJobManifest(const QJsonObject& job);
     bool validateWorkflowPlan(const WorkflowPlan& plan);

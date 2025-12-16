@@ -44,7 +44,7 @@ void WorkflowExecutor::addScene(WorkflowConfig& workflow, const Scene& scene) {
     workflow.scenes.append(scene);
     qDebug() << "Added scene:" << scene.name << "targeting" 
             << (scene.targetEngine == WorkflowStage::Blender ? "Blender" :
-                scene.targetEngine == WorkflowStage::Unreal ? "Unreal" : "DaVinci");
+                scene.targetEngine == WorkflowStage::Unreal ? "Unreal" : "FFmpeg"); // <<< FIXED
 }
 
 QJsonObject WorkflowExecutor::createBlenderJob(const Scene& scene, const WorkflowConfig& config) {
@@ -118,12 +118,12 @@ QJsonObject WorkflowExecutor::createUnrealJob(const Scene& scene, const Workflow
     return manifest;
 }
 
-QJsonObject WorkflowExecutor::createDaVinciAssemblyJob(const QStringList& renderPaths,
+QJsonObject WorkflowExecutor::createFfmpegAssemblyJob(const QStringList& renderPaths, // <<< RENAMED function
                                                       const WorkflowConfig& config) {
     JobManifestManager::JobConfig jobConfig;
     jobConfig.projectName = config.projectName;
     jobConfig.sceneName = "FinalAssembly";
-    jobConfig.engine = JobManifestManager::Engine::DaVinci;
+    jobConfig.engine = JobManifestManager::Engine::FFmpeg; // <<< FIXED
     jobConfig.outputPath = config.outputPath + "/" + config.projectName + "_final.mp4";
     
     QJsonObject manifest = m_manifestManager.createJobManifest(jobConfig);
@@ -164,8 +164,8 @@ QJsonObject WorkflowExecutor::generateSceneJob(const Scene& scene, const Workflo
             return createBlenderJob(scene, config);
         case WorkflowStage::Unreal:
             return createUnrealJob(scene, config);
-        case WorkflowStage::DaVinci:
-            return createDaVinciAssemblyJob(QStringList(), config);
+        case WorkflowStage::FFmpeg: // <<< CHANGE THIS from WorkflowStage::DaVinci
+            return createFfmpegAssemblyJob(QStringList(), config);
         default:
             return QJsonObject();
     }
@@ -194,13 +194,13 @@ QJsonArray WorkflowExecutor::generateAllJobs(const WorkflowConfig& config, const
 
 bool WorkflowExecutor::executeStage(WorkflowStage stage, const QJsonArray& jobs) {
     QString stageName = (stage == WorkflowStage::Blender ? "Blender" :
-                        stage == WorkflowStage::Unreal ? "Unreal" : "DaVinci");
+                        stage == WorkflowStage::Unreal ? "Unreal" : "FFmpeg"); // <<< FIXED
     
     updateStatus("Executing " + stageName + " stage with " + QString::number(jobs.size()) + " jobs");
     
     JobManifestManager::Engine engine = (stage == WorkflowStage::Blender ? JobManifestManager::Engine::Blender :
                                         stage == WorkflowStage::Unreal ? JobManifestManager::Engine::Unreal :
-                                        JobManifestManager::Engine::DaVinci);
+                                        JobManifestManager::Engine::FFmpeg); // <<< FIXED
     
     for (int i = 0; i < jobs.size(); ++i) {
         QString jobPath = jobs[i].toString();
@@ -272,8 +272,8 @@ bool WorkflowExecutor::executeWorkflow(const WorkflowConfig& config) {
             }
         }
         
-        // Execute DaVinci assembly
-        updateStatus("Assembling final video in DaVinci");
+        // Execute FFmpeg assembly
+        updateStatus("Assembling final video using FFmpeg"); // <<< FIXED
         
         // Collect all render outputs
         QStringList renderOutputs;
@@ -298,17 +298,17 @@ bool WorkflowExecutor::executeWorkflow(const WorkflowConfig& config) {
 }
 
 bool WorkflowExecutor::assembleVideo(const WorkflowConfig& config, const QStringList& renderOutputs) {
-    // Create DaVinci assembly job
-    QJsonObject davinciJob = createDaVinciAssemblyJob(renderOutputs, config);
+    // Create FFmpeg assembly job
+    QJsonObject ffmpegJob = createFfmpegAssemblyJob(renderOutputs, config); // <<< FIXED
     
     // Save and execute
-    QString davinciJobPath = config.outputPath + "/jobs/davinci_assembly.json";
-    if (!m_manifestManager.saveManifest(davinciJob, davinciJobPath)) {
-        qWarning() << "Failed to save DaVinci job";
+    QString ffmpegJobPath = config.outputPath + "/jobs/ffmpeg_assembly.json"; // <<< FIXED
+    if (!m_manifestManager.saveManifest(ffmpegJob, ffmpegJobPath)) {
+        qWarning() << "Failed to save FFmpeg job"; // <<< FIXED
         return false;
     }
     
-    return m_manifestManager.executeJob(davinciJobPath, JobManifestManager::Engine::DaVinci);
+    return m_manifestManager.executeJob(ffmpegJobPath, JobManifestManager::Engine::FFmpeg); // <<< FIXED
 }
 
 void WorkflowExecutor::updateStatus(const QString& message) {

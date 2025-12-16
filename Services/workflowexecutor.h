@@ -10,12 +10,11 @@
 
 /**
  * @class WorkflowExecutor
- * @brief Coordinates multi-stage workflows (Blender → Unreal → DaVinci)
- * 
- * This is the core orchestration engine that:
+ * @brief Coordinates multi-stage workflows (Blender → Unreal → FFmpeg)
+ * * This is the core orchestration engine that:
  * 1. Takes a project description
  * 2. Breaks it into scenes
- * 3. Generates job tickets for each scene (Blender, Unreal, DaVinci)
+ * 3. Generates job tickets for each scene (Blender, Unreal, FFmpeg)
  * 4. Executes them in sequence or parallel
  * 5. Collects outputs and assembles final video
  */
@@ -24,7 +23,7 @@ public:
     enum class WorkflowStage {
         Blender,    // 3D rendering
         Unreal,     // Cinematic sequences
-        DaVinci     // Video editing & assembly
+        FFmpeg      // Video editing & assembly (Replaced DaVinci)
     };
 
     struct Scene {
@@ -85,7 +84,7 @@ public:
     bool executeWorkflow(const WorkflowConfig& config);
 
     /**
-     * Execute workflow stage (Blender, Unreal, or DaVinci)
+     * Execute workflow stage (Blender, Unreal, or FFmpeg)
      */
     bool executeStage(WorkflowStage stage, const QJsonArray& jobs);
 
@@ -116,9 +115,9 @@ private:
     QJsonObject createUnrealJob(const Scene& scene, const WorkflowConfig& config);
 
     /**
-     * Create DaVinci assembly job
+     * Create FFmpeg assembly job
      */
-    QJsonObject createDaVinciAssemblyJob(const QStringList& renderPaths,
+    QJsonObject createFfmpegAssemblyJob(const QStringList& renderPaths,
                                         const WorkflowConfig& config);
 
     /**

@@ -147,6 +147,8 @@ MainWindow::MainWindow(QWidget *parent)
     m_texturingController = new TexturingController(basePath, this);
     m_animationController = new AnimationController(basePath, this);
     m_validatorController = new ValidatorController(basePath, this);
+    m_ffmpegController = new FfmpegController(basePath, this);
+    m_networkManager = new QNetworkAccessManager(this);
 
     // --- START: NEW Global Logger Initialization ---
     // These loggers are for agents that work outside of a project context, like 'Vrinda'.
@@ -240,34 +242,62 @@ MainWindow::MainWindow(QWidget *parent)
     // --- HEALTH CHECK POLLER ---
     // Connect ModelManager's startHealthCheck signal to a poller that checks the
     // /health endpoint and invokes the provided callback when the server is ready.
-    connect(m_modelManager, &ModelManager::startHealthCheck, this, [this](int port, std::function<void()> onReadyCallback){
-        qDebug() << "HEALTH POLLER: Starting health checks on port" << port;
-        QNetworkAccessManager *healthNet = new QNetworkAccessManager(this);
-        QTimer *pollTimer = new QTimer(this);
-        pollTimer->setInterval(500); // poll every 500ms
+    connect(m_modelManager, &ModelManager::startHealthCheck, this, [this](int port, std::function<void()> onReadyCallback) {
+        qDebug() << "MAINWINDOW: Received Health Check request for port" << port;
 
-        // Each timeout does a short GET to /health
-        connect(pollTimer, &QTimer::timeout, this, [this, port, healthNet, pollTimer, onReadyCallback]() mutable {
+        // Use a pointer to track if we've already finished to avoid double-calling
+        auto alreadyTriggered = std::make_shared<bool>(false);
+
+        QTimer* pollTimer = new QTimer(this);
+        pollTimer->setInterval(2000); // Check every 2 seconds
+
+        connect(pollTimer, &QTimer::timeout, this, [this, port, pollTimer, onReadyCallback, alreadyTriggered]() {
+            if (*alreadyTriggered) return;
+
             QString url = QString("http://127.0.0.1:%1/health").arg(port);
-            QNetworkRequest req(url);
-            QNetworkReply *reply = healthNet->get(req);
-            connect(reply, &QNetworkReply::finished, this, [this, reply, pollTimer, onReadyCallback]() mutable {
+            QNetworkRequest req((QUrl(url)));
+            
+            // Use the main network manager to ensure the request survives the lambda scope
+            QNetworkReply *reply = m_networkManager->get(req);
+
+            connect(reply, &QNetworkReply::finished, this, [this, reply, pollTimer, onReadyCallback, alreadyTriggered, port]() {
+                if (*alreadyTriggered) {
+                    reply->deleteLater();
+                    return;
+                }
+
+                bool isReady = false;
                 if (reply->error() == QNetworkReply::NoError) {
                     QByteArray resp = reply->readAll();
                     QString s = QString::fromUtf8(resp).toLower();
-                    if (s.contains("ok") || reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200) {
-                        qDebug() << "HEALTH POLLER: Port ready -> invoking callback";
-                        pollTimer->stop();
-                        reply->deleteLater();
-                        pollTimer->deleteLater();
-                        // Invoke the callback to let ModelManager process the queue
-                        if (onReadyCallback) onReadyCallback();
-                        return;
+                    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+                    // Llama.cpp returns {"status": "ok"} or simply 200 OK
+                    if (s.contains("ok") || statusCode == 200) {
+                        isReady = true;
                     }
                 }
+
+                if (isReady) {
+                    qDebug() << "HEALTH POLLER: Port" << port << "is READY. Stopping timer.";
+                    *alreadyTriggered = true;
+                    
+                    pollTimer->stop();
+                    pollTimer->deleteLater();
+                    
+                    // Execute the callback in ModelManager to reset m_isCurrentlySwapping
+                    if (onReadyCallback) {
+                        onReadyCallback();
+                    }
+                } else {
+                    // Optional: Log that we are still waiting
+                    qDebug() << "HEALTH POLLER: Port" << port << "not ready yet... retrying.";
+                }
+
                 reply->deleteLater();
             });
         });
+
         pollTimer->start();
     });
 
@@ -323,6 +353,20 @@ MainWindow::MainWindow(QWidget *parent)
             ui->ValidatorChatArea->append("❌ Validation Failed. Reason: " + summary);
             // CRITICAL: Fail the workflow task so the Manager/Corrector can intervene.
             m_projectWorkflow->taskFailed(taskId, "Validation failed: " + summary);
+        }
+    });
+
+    // --- ADD NEW CONNECTIONS FOR FfmpegController (Editing Agent) ---
+    connect(m_ffmpegController, &FfmpegController::processOutput, this, [=](const QString& output){
+        ui->EditingChatArea->append("🎬 FFmpeg Process: " + output);
+    });
+    connect(m_ffmpegController, &FfmpegController::processFinished, this, [=](const QString& taskId, const QString& outputPath){
+        if (outputPath == "SUCCESS") {
+            ui->EditingChatArea->append("✅ Video Editing Complete (FFmpeg).");
+            m_projectWorkflow->taskFinished(taskId);
+        } else {
+            ui->EditingChatArea->append("❌ Video Editing Failed (FFmpeg). Check console for error.");
+            m_projectWorkflow->taskFailed(taskId, "Video editing/composition failed (FFmpeg).");
         }
     });
 
@@ -579,9 +623,8 @@ MainWindow::MainWindow(QWidget *parent)
             roleBuffers.remove("Engine_output");
         }
 
-        QStringList logs = m_dbManager->loadAgentLogs("Editing");
-        ui->EditingChatArea->clear(); // Optional: clear the chat before loading history
-        ui->EditingChatArea->append(logs.join("\n"));
+        // Removed redundant log loading here, relying on handleAgent or logs being pre-loaded.
+        // It's crucial to call handleAgent now:
         handleAgent("", "Editing", ui->EditingTextEdit, ui->EditingChatArea);
     });
 
@@ -926,9 +969,12 @@ void MainWindow::onLlamaResponse(const QString &taskId, const QString &role, con
             } else if (role == "Validator") {
                 // Validator agent provides the checklist/script; the controller executes the file/code checks
                 m_validatorController->executeValidationCommand(taskId, payloadString);
+            } else if (role == "Editing") { // <<< NEW DELEGATION FOR EDITING
+                // Editing agent gives a structured manifest for the FfmpegController
+                m_ffmpegController->executeEditingCommand(taskId, payloadString);
             }
             else {
-                // For Coder, Designer (UI/Docs), Researcher, Editing
+                // For Coder, Designer (UI/Docs), Researcher, Integrator, etc., save output to file
                 saveAgentOutputToFile(taskId, role, payloadString);
             }
 
@@ -1034,8 +1080,6 @@ void MainWindow::saveAgentOutputToFile(const QString &taskId, const QString &rol
         } else if (role == "Integrator") {
             subFolder = "/";
             if (specificFileName.isEmpty()) specificFileName = "README";
-        } else if (role == "Editing") {
-            subFolder = "/scripts";
         } else {
             subFolder = "/docs";
         }
