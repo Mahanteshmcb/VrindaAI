@@ -6,6 +6,8 @@
 #include <QMap>
 #include <QSet>
 #include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument>
 
 // A struct to hold all information about a single task in the plan
 struct WorkflowTask
@@ -27,6 +29,9 @@ public:
     // Public functions to be called from MainWindow
     QString getGeneratedScriptFile();
     bool isRunning() const;
+    QJsonObject getCurrentPlanState() const { 
+        return m_currentPlan; 
+    }
 
 public slots:
     void startWorkflowFromPlan(const QString &managerResponse);
@@ -45,6 +50,7 @@ private:
     void evaluateWorkflow();
 
     QJsonArray getPlanStateAsJson() const;
+    QJsonObject m_currentPlan;
 
     QString m_basePath;
     QMap<QString, QString> &m_roleBuffers;

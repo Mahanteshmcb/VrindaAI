@@ -45,6 +45,11 @@ void ProjectWorkflow::startWorkflowFromPlan(const QString &managerResponse)
 
 void ProjectWorkflow::taskFinished(const QString &taskId)
 {
+    if (m_currentPlan.isEmpty()) {
+        qDebug() << "⚠️ Warning: Task finished but no plan is loaded.";
+        return;
+    }
+    
     if (!m_tasks.contains(taskId) || m_tasks[taskId].status == WorkflowTask::Complete) return;
 
     emit workflowMessage(QString("✅ Task %1 (%2) has finished.").arg(taskId, m_tasks[taskId].role));

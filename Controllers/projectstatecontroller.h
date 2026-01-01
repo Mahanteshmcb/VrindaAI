@@ -15,7 +15,7 @@ public:
     bool loadManifest(const QString &projectPath);
     bool saveManifest();
 
-    QString registerAsset(const QString &assetType, const QString &assetName, const QString &relativePath);
+    QString registerAsset(const QString &assetType, const QString &assetName, const QString &assetDescription, const QString &relativePath);
     QString getAssetPath(const QString &assetId) const;
     QJsonArray findAssetsOfType(const QString &assetType) const;
 

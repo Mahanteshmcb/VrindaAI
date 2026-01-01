@@ -2,11 +2,11 @@
 #include <QDir>
 #include <QDebug>
 #include <QRegularExpression>
+#include <QDateTime>
 
 ProjectManager::ProjectManager(const QString &basePath, QObject *parent)
     : QObject(parent)
 {
-    // The main directory where all projects will be stored
     m_baseProjectsDir = basePath + "/projects";
     QDir dir(m_baseProjectsDir);
     if (!dir.exists()) {
@@ -16,15 +16,15 @@ ProjectManager::ProjectManager(const QString &basePath, QObject *parent)
 
 QString ProjectManager::createNewProject(const QString &goal)
 {
-    // --- NEW: Create a shorter, cleaner name from the goal ---
+    // Clean name generation from goal
     QStringList words = goal.split(' ', Qt::SkipEmptyParts);
-    QString shortGoal = words.mid(0, 8).join(' '); // Take the first 8 words
+    QString shortGoal = words.mid(0, 8).join(' '); 
 
     QString goalSlug = shortGoal.toLower()
-                           .replace(QRegularExpression(R"([^a-z0-9\s_])"), "") // Allow spaces and underscores initially
+                           .replace(QRegularExpression(R"([^a-z0-9\s_])"), "") 
                            .trimmed()
-                           .replace(QRegularExpression(R"(\s+)"), "_") // Replace whitespace with a single underscore
-                           .left(50); // Truncate to a safe length
+                           .replace(QRegularExpression(R"(\s+)"), "_") 
+                           .left(50); 
 
     if (goalSlug.isEmpty()) {
         goalSlug = "new_project_" + QString::number(QDateTime::currentSecsSinceEpoch());
@@ -34,31 +34,32 @@ QString ProjectManager::createNewProject(const QString &goal)
     QDir projectDir(newProjectPath);
     int counter = 1;
     while (projectDir.exists()) {
-        // If project already exists, append a number
         newProjectPath = m_baseProjectsDir + "/" + goalSlug + "_" + QString::number(counter++);
         projectDir.setPath(newProjectPath);
     }
 
-    // Create the project directory and standard sub-folders
+    // --- PHASE 1: INDUSTRY STANDARD FOLDER STANDARDIZATION ---
+    // Core Workflow Folders [cite: 10, 12, 27, 28]
     projectDir.mkpath(".");
+    projectDir.mkpath("Raw_Downloads");  // For initial asset collection [cite: 12]
+    projectDir.mkpath("Processed_FBX"); // For Blender Auto-Rigger output [cite: 12]
+    projectDir.mkpath("Renders");       // For Blender/Unreal frame sequences [cite: 12]
+    projectDir.mkpath("Final_Exports"); // For FFmpeg final movie output [cite: 28]
+    
+    // Support & Code Folders
     projectDir.mkpath("src");
     projectDir.mkpath("scripts");
-    projectDir.mkpath("db");
-    projectDir.mkpath("assets");
-    projectDir.mkpath("logs");
+    projectDir.mkpath("db");            // For project-specific tasks.sqlite
+    projectDir.mkpath("logs");          // For Phase 5 feedback loop reports [cite: 26]
     projectDir.mkpath("reports");
-    projectDir.mkpath("frontend");
-    projectDir.mkpath("backend");
-    projectDir.mkpath("ui");
     projectDir.mkpath("docs");
-    projectDir.mkpath("r&d");
+    projectDir.mkpath("r&d");           // Research documentation
 
-
-
-
-    qDebug() << "✅ Created new project workspace at:" << newProjectPath;
+    qDebug() << "✅ Phase 1 Complete: Standardized workspace established at:" << newProjectPath;
     return newProjectPath;
 }
+
+
 
 QString ProjectManager::findExistingProject(const QString &projectName)
 {

@@ -38,78 +38,87 @@ void ModelManager::setServerController(LlamaServerController *controller) {
 
 void ModelManager::sendRequest(const QString &taskId, const QString &role, const QString &prompt) {
     if (!m_serverController) {
-        emit requestFailed(role, "Server controller not initialized.");
+        emit requestFailed(taskId, role, "Server controller not initialized.");
         return;
     }
 
     QString requiredModel = getModelForRole(role);
     int requiredPort = m_modelToPortMap.value(requiredModel, 8080);
 
-    // 1. If correct model is loaded and NOT swapping, send now
+    // 1. If correct model is ALREADY loaded and server is idle, send immediately
     if (m_activeModelName == requiredModel && !m_isCurrentlySwapping) {
         sendNetworkRequest(taskId, role, prompt, requiredModel, requiredPort);
         return;
     }
 
-    // 2. Queue the request
+    // 2. Queue the request regardless - treat it as a source of truth
     m_pendingRequests.enqueue({taskId, role, prompt, requiredModel, requiredPort});
 
-    // 3. Prevent multiple swap triggers
+    // 3. If we are already mid-swap, STOP HERE. 
+    // The callback in the existing swap will eventually call processPendingRequestQueue()
     if (m_isCurrentlySwapping) {
-        qDebug() << "SCHEDULER: Already swapping. Request for" << role << "is in queue.";
+        qDebug() << "SCHEDULER: Swap in progress. Request for" << role << "queued.";
         return;
     }
 
-    // 4. Trigger Physical Swap
-    qDebug() << "SCHEDULER: Initiating swap:" << m_activeModelName << "-> " << requiredModel;
+    // 4. Initiate the Serial Swap
     m_isCurrentlySwapping = true;
-
-    // Use stopAllServers to be absolutely sure port 8080-8083 are free
-    m_serverController->stopAllServers();
+    
+    // Only stop the specific port if you have multi-port capability, 
+    // otherwise, stop only the active one to avoid "Connection Refused" on other requests.
+    m_serverController->stopServerOnPort(m_activeModelPort); 
 
     m_activeModelName = requiredModel;
     m_activeModelPort = requiredPort;
 
-    // Start the process
+    qDebug() << "SCHEDULER: Initiating physical swap to" << requiredModel << "on port" << requiredPort;
     m_serverController->startServer(requiredModel, requiredPort);
 
-    // 5. Emit signal for MainWindow to handle health checks
+    // 5. The "Gatekeeper" Health Check
+    // This Lambda is the only way m_isCurrentlySwapping becomes false.
     emit startHealthCheck(requiredPort, [this]() {
-        qDebug() << "SCHEDULER: Swap successful. " << this->m_activeModelName << "is ready.";
+        qDebug() << "SCHEDULER: Port" << this->m_activeModelPort << "confirmed READY.";
         this->m_isCurrentlySwapping = false; 
-        this->processPendingRequestQueue();
+        this->processPendingRequestQueue(); 
     });
 }
 
 void ModelManager::processPendingRequestQueue() {
-    if (m_pendingRequests.isEmpty()) return;
+    if (m_pendingRequests.isEmpty()) {
+        m_isCurrentlySwapping = false; // Release lock if nothing left
+        return;
+    }
 
     QQueue<PendingRequest> keepInQueue;
-    int staggerDelay = 0;
+    int staggerDelay = 100; // Start with a small buffer
 
+    // 1. Dispatch all tasks matching the CURRENTLY LOADED model
     while (!m_pendingRequests.isEmpty()) {
         PendingRequest req = m_pendingRequests.dequeue();
         
         if (req.model == m_activeModelName) {
-            // Stagger multiple requests to the same model so they don't hit the server all at once
             QTimer::singleShot(staggerDelay, this, [=]() {
-                sendNetworkRequest(req.taskId, req.role, req.prompt, req.model, req.port);
+                this->sendNetworkRequest(req.taskId, req.role, req.prompt, req.model, req.port);
             });
-            staggerDelay += 1000; // 1 second gap between queued tasks
+            staggerDelay += 1500; // Increased to 1.5s to ensure llama-server context is clear
         } else {
             keepInQueue.enqueue(req);
         }
     }
     m_pendingRequests = keepInQueue;
 
-    // Trigger next swap if needed after all current-model tasks are dispatched
-    if (!m_pendingRequests.isEmpty() && !m_isCurrentlySwapping) {
-        QTimer::singleShot(staggerDelay + 500, this, [this]() {
-            if (!m_pendingRequests.isEmpty()) {
-                PendingRequest next = m_pendingRequests.head();
+    // 2. Schedule the next swap ONLY after all current requests are safely out the door
+    if (!m_pendingRequests.isEmpty()) {
+        QTimer::singleShot(staggerDelay + 1000, this, [this]() {
+            // Check again if a new task finished and cleared the queue
+            if (!this->m_pendingRequests.isEmpty()) {
+                PendingRequest next = this->m_pendingRequests.head();
+                this->m_isCurrentlySwapping = false; // Explicitly release to allow sendRequest to trigger swap
                 this->sendRequest(next.taskId, next.role, next.prompt);
             }
         });
+    } else {
+        m_isCurrentlySwapping = false;
     }
 }
 
@@ -173,7 +182,8 @@ void ModelManager::onCompletionReplyFinished(QNetworkReply *reply) {
     const QString modelUsed = requestData["modelUsed"].toString();
 
     if (reply->error() != QNetworkReply::NoError) {
-        emit requestFailed(role, reply->errorString());
+        emit requestFailed(taskId, role, reply->errorString());
+        return;
     } else {
         QJsonDocument jsonResponse = QJsonDocument::fromJson(reply->readAll());
         QString responseText;

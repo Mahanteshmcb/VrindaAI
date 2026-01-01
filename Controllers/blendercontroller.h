@@ -2,35 +2,35 @@
 #define BLENDERCONTROLLER_H
 
 #include <QObject>
-#include <QString>
-#include <QProcess> // Added for cleaner signal/slot handling
+#include <QProcess>
+#include <QFileInfo>
+#include "Controllers/projectstatecontroller.h" // Needed for Manifest registration
 
 class BlenderController : public QObject
 {
     Q_OBJECT
 public:
     explicit BlenderController(const QString &basePath, QObject *parent = nullptr);
-
-    // Setters for configuration
+    
     void setBlenderPath(const QString &path);
     void setActiveProjectPath(const QString &path);
+    void setProjectStateController(ProjectStateController* controller) { m_projectStateController = controller; }
 
-public slots:
-    void triggerScript(const QString &scriptContent);
+    // Phase 2 Action: Automated Casting
+    void executeAutoRig(const QString &taskId, const QString &inputMeshPath, const QString &rigType = "basic_human");
 
 signals:
-    // Emitted when the blender process produces output or errors
     void blenderOutput(const QString &output);
     void blenderError(const QString &error);
     void blenderFinished(int exitCode);
-
-    // Emitted when a specific asset path is detected or generated
     void assetReadyForEngine(const QString &assetPath);
 
 private:
     QString m_basePath;
     QString m_blenderPath;
     QString m_activeProjectPath;
+    QString m_engineScriptPath;
+    ProjectStateController* m_projectStateController = nullptr;
 };
 
-#endif // BLENDERCONTROLLER_H
+#endif

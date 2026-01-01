@@ -1,26 +1,14 @@
 #include "blendercontroller.h"
-#include <QProcess>
-#include <QFile>
 #include <QDir>
-#include <QTextStream>
-#include <QDateTime>
 #include <QDebug>
-#include <QTemporaryDir>
-#include <QRegularExpression>
-#include <QCoreApplication>
+#include <QDateTime>
 
 BlenderController::BlenderController(const QString &basePath, QObject *parent)
-    : QObject(parent), m_basePath(basePath),
-    // Default path (can be overridden by settings)
-    m_blenderPath("C:/Program Files/Blender Foundation/Blender 4.3/blender.exe")
+    : QObject(parent), m_basePath(basePath)
 {
-}
-
-void BlenderController::setBlenderPath(const QString &path)
-{
-    if (!path.isEmpty()) {
-        m_blenderPath = path;
-    }
+    m_blenderPath = "C:/Program Files/Blender Foundation/Blender 4.2/blender.exe";
+    // Point to the industry-standard engine script from your roadmap
+    m_engineScriptPath = m_basePath + "/src/engines/blender_engine.py";
 }
 
 void BlenderController::setActiveProjectPath(const QString &path)
@@ -28,100 +16,50 @@ void BlenderController::setActiveProjectPath(const QString &path)
     m_activeProjectPath = path;
 }
 
-void BlenderController::triggerScript(const QString &scriptContent)
+void BlenderController::executeAutoRig(const QString &taskId, const QString &inputMeshPath, const QString &rigType)
 {
-    // 1. Validation
-    if (!QFile::exists(m_blenderPath)) {
-        emit blenderError("❌ Blender executable not found at: " + m_blenderPath);
-        return;
-    }
-    if (m_activeProjectPath.isEmpty()) {
-        emit blenderError("❌ Cannot run Blender script: No active project path is set.");
-        return;
-    }
+    if (m_activeProjectPath.isEmpty()) return;
 
-    // 2. Setup Temporary Directory & Script
-    // FIX: Allocate on heap so it survives after this function returns
-    QTemporaryDir *tempDir = new QTemporaryDir();
-    if (!tempDir->isValid()) {
-        emit blenderError("❌ Could not create temporary directory.");
-        delete tempDir;
-        return;
-    }
+    // ROADMAP FIX: Use Phase 1 standard folder structure
+    QString outputDir = m_activeProjectPath + "/Processed_FBX";
+    QDir().mkpath(outputDir);
+    
+    QString assetName = QFileInfo(inputMeshPath).baseName();
+    QString outputFbx = outputDir + "/" + assetName + "_rigged.fbx";
 
-    // Turn off auto-remove so we can control deletion time
-    tempDir->setAutoRemove(false); 
-
-    QString scriptPath = tempDir->path() + "/temp_blender_script.py";
-    QFile scriptFile(scriptPath);
-    if (!scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        emit blenderError("❌ Could not create script file: " + scriptPath);
-        delete tempDir;
-        return;
-    }
-
-    QTextStream out(&scriptFile);
-    out << scriptContent;
-    scriptFile.close();
-
-    // 3. Prepare Paths
-    QDir projectDir(m_activeProjectPath);
-    if (!projectDir.exists()) {
-        projectDir.mkpath(".");
-    }
-    projectDir.mkpath("blend");
-    projectDir.mkpath("assets");
-
-    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss");
-    QString blendPath = projectDir.filePath("blend/scene_" + timestamp + ".blend");
-    QString fbxPath = projectDir.filePath("assets/export_" + timestamp + ".fbx");
-
-    // 4. Configure Process
-    QProcess *blenderProcess = new QProcess(this);
-    blenderProcess->setProcessChannelMode(QProcess::SeparateChannels);
-    blenderProcess->setWorkingDirectory(m_activeProjectPath);
-
+    QProcess *process = new QProcess(this);
+    
+    // Command line for blender_engine.py AAA pipeline
     QStringList args;
-    // --background: Run headless
-    // --python: Execute the script
-    // --: arguments passed to the python script itself
-    args << "--background" << "--python" << scriptPath << "--" << fbxPath << blendPath;
+    args << "-b" << "-P" << m_engineScriptPath << "--" 
+         << "--action" << "auto_rig"
+         << "--input" << inputMeshPath
+         << "--output" << outputFbx
+         << "--rig_type" << rigType;
 
-    emit blenderOutput("🎬 Running Blender script: " + scriptPath);
-    qDebug() << "Executing:" << m_blenderPath << args;
-
-    // 5. Connect Signals
-    connect(blenderProcess, &QProcess::readyReadStandardOutput, this, [=]() {
-        QString output = QString::fromUtf8(blenderProcess->readAllStandardOutput()).trimmed();
-        if (!output.isEmpty()) emit blenderOutput("🟢 Blender: " + output);
+    connect(process, &QProcess::readyReadStandardOutput, this, [=]() {
+        emit blenderOutput(process->readAllStandardOutput().trimmed());
     });
 
-    connect(blenderProcess, &QProcess::readyReadStandardError, this, [=]() {
-        QString err = QString::fromUtf8(blenderProcess->readAllStandardError()).trimmed();
-        if (!err.isEmpty()) emit blenderError("🔴 Blender Log: " + err);
-    });
-
-    // Handle Cleanup when process finishes
-    connect(blenderProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
-            [=](int exitCode, QProcess::ExitStatus status) {
-        
-        emit blenderFinished(exitCode);
-        
-        if (status == QProcess::NormalExit && exitCode == 0) {
-            emit blenderOutput("✅ Blender process completed successfully.");
-            emit assetReadyForEngine(fbxPath);
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, [=](int exitCode) {
+        if (exitCode == 0) {
+            emit blenderOutput("✅ Auto-Rig Complete: " + assetName);
+            
+            // PHASE 1 COMPLIANCE: Register with unified manifest including description
+            if (m_projectStateController) {
+                m_projectStateController->registerAsset(
+                    "MESH", 
+                    assetName, 
+                    "AAA Rigged character ready for Unreal Engine spawning.", // Description for future fetching
+                    "Processed_FBX/" + assetName + "_rigged.fbx"
+                );
+            }
+            emit assetReadyForEngine(outputFbx);
         } else {
-            emit blenderError("❌ Blender process failed with code: " + QString::number(exitCode));
+            emit blenderError("❌ Auto-Rig failed for " + assetName);
         }
-
-        // Cleanup resources
-        // Now it is safe to delete the temporary directory and the script file inside it
-        tempDir->remove(); 
-        delete tempDir; 
-        
-        blenderProcess->deleteLater();
+        process->deleteLater();
     });
 
-    // 6. Start
-    blenderProcess->start(m_blenderPath, args);
+    process->start(m_blenderPath, args);
 }

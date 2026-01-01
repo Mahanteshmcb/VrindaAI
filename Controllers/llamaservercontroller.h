@@ -15,7 +15,7 @@ class LlamaServerController : public QObject
 public:
     explicit LlamaServerController(const QString &basePath, QObject *parent = nullptr);
     // Requests the controller to stop the running server on the specified port.
-    void stopServer(int port);
+    void stopServerOnPort(int port);
     // Requests the controller to launch a specific model on the specified port.
     void startServer(const QString &modelName, int port);
     void stopAllServers();

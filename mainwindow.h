@@ -42,14 +42,14 @@ public:
     ~MainWindow();
 
 signals:
-
+    void escalateToCorrector(const QString &taskId, const QString &error, const QJsonObject &currentPlan);
 
 private slots:
     void handleAgent(const QString &taskId, const QString &role, QTextEdit *inputBox, QTextEdit *chatBox);
     void routeTaskToManager(const QString &response, bool isIntervention = false);
     void createDefaultEnginePrompt();
     void onLlamaResponse(const QString &taskId, const QString &role, const QString &response, const QString &modelUsed);
-    void onLlamaError(const QString &role, const QString &errorString);
+    void onLlamaError(const QString &taskId, const QString &role, const QString &errorString);
     void onAssignTask(const QString &taskId, const QString &role, const QString &task);
     void initializeServicesForProject(const QString &projectPath);
     void onManualIntervention(const QString &instructions);

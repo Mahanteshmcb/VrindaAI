@@ -46,6 +46,7 @@ class BlenderEngine:
             r"C:\Program Files\Blender Foundation\Blender 4.3\blender.exe",
             r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
             r"C:\Program Files\Blender Foundation\Blender 4.1\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 4.0\blender.exe",
             r"C:\Program Files (x86)\Blender Foundation\Blender\blender.exe"
         ]
         
@@ -313,54 +314,140 @@ for light_name, config in lights_config.items():
     # ==========================================
 
     def _generate_render_script(self, spec: Dict, output_dir: str) -> str:
-        """Generate Blender Python script for rendering"""
         quality = spec.get("quality", "high")
-        engine_type = 'BLENDER_EEVEE_NEXT' if quality in ['low', 'medium'] else 'CYCLES'
-        samples = 128 if quality == "ultra" else 64
-        fps = spec.get('fps', 24)
-        duration = spec.get('duration', 30)
-        frame_end = duration * fps
+        assets = spec.get("assets", []) 
+        
+        # --- FIX: GENERATE UNIQUE ID ---
+        # 1. Try to get ID from filename (e.g. "143f8d3e" from "143f8d3e_manufacturing.stl")
+        # 2. Fallback to timestamp
+        import time
+        unique_id = f"render_{int(time.time())}"
+        if assets and hasattr(assets[0], 'split'):
+             try:
+                 filename = os.path.basename(assets[0])
+                 # If file is "143f8d3e_manufacturing.stl", split gives "143f8d3e"
+                 unique_id = filename.split('_')[0]
+             except:
+                 pass
+        # -------------------------------
 
+        engine_type = 'BLENDER_EEVEE_NEXT' if quality in ['low', 'medium'] else 'CYCLES'
+        file_format = 'OPEN_EXR' if quality == 'raw' else 'PNG'
+        
         script = f"""
 import bpy
 import os
+import mathutils
 
+# 1. CLEAN SCENE
+bpy.ops.wm.read_factory_settings(use_empty=True)
+
+# 2. IMPORT ASSETS
+assets = {json.dumps(assets)}
+imported_objects = []
+
+for asset_path in assets:
+    if asset_path.endswith('.stl'):
+        try:
+            bpy.ops.wm.stl_import(filepath=asset_path)
+        except:
+            bpy.ops.import_mesh.stl(filepath=asset_path)
+    elif asset_path.endswith('.obj'):
+        bpy.ops.wm.obj_import(filepath=asset_path)
+
+# Find meshes
+for obj in bpy.context.scene.objects:
+    if obj.type == 'MESH':
+        imported_objects.append(obj)
+
+if not imported_objects:
+    print("ERROR: No geometry imported!")
+    exit()
+
+# 3. AUTO-CENTERING
+primary_obj = imported_objects[0]
+bpy.context.view_layer.objects.active = primary_obj
+bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+primary_obj.location = (0, 0, 0)
+bpy.ops.object.shade_smooth()
+
+# Apply Material
+mat = bpy.data.materials.new(name="AutoMetal")
+mat.use_nodes = True
+nodes = mat.node_tree.nodes
+bsdf = nodes.get("Principled BSDF")
+if bsdf:
+    bsdf.inputs['Base Color'].default_value = (0.8, 0.8, 0.9, 1)
+    bsdf.inputs['Metallic'].default_value = 1.0
+    bsdf.inputs['Roughness'].default_value = 0.2
+primary_obj.data.materials.append(mat)
+
+# 4. CAMERA
+dim = primary_obj.dimensions
+max_dim = max(dim.x, dim.y, dim.z)
+cam_dist = max_dim * 2.0
+if cam_dist < 10: cam_dist = 15
+
+cam_data = bpy.data.cameras.new(name='Camera')
+cam_obj = bpy.data.objects.new(name='Camera', object_data=cam_data)
+bpy.context.collection.objects.link(cam_obj)
+bpy.context.scene.camera = cam_obj
+cam_obj.location = (cam_dist, -cam_dist, cam_dist * 0.8)
+
+direction = mathutils.Vector((0,0,0)) - cam_obj.location
+rot_quat = direction.to_track_quat('-Z', 'Y')
+cam_obj.rotation_euler = rot_quat.to_euler()
+
+# 5. LIGHTING (High Quality)
+world = bpy.context.scene.world
+if not world:
+    world = bpy.data.worlds.new("World")
+    bpy.context.scene.world = world
+world.use_nodes = True
+bg = world.node_tree.nodes['Background']
+bg.inputs[0].default_value = (0.2, 0.2, 0.2, 1)
+
+light_data = bpy.data.lights.new(name="KeySun", type='SUN')
+light_data.energy = 5.0
+light_obj = bpy.data.objects.new(name="KeySun", object_data=light_data)
+bpy.context.collection.objects.link(light_obj)
+light_obj.rotation_euler = (0.5, 0.2, 0.5)
+
+bpy.ops.object.light_add(type='AREA', location=(-cam_dist, -cam_dist, cam_dist/2))
+fill_light = bpy.context.object
+fill_light.data.energy = 3000
+fill_light.data.size = max_dim * 2
+
+bpy.ops.object.light_add(type='POINT', location=(0, cam_dist, cam_dist))
+rim_light = bpy.context.object
+rim_light.data.energy = 2000
+rim_light.data.color = (0.8, 0.9, 1.0)
+
+# 6. RENDER SETTINGS (With Unique Filename)
+scene = bpy.context.scene
 output_dir = r'{output_dir}'
 os.makedirs(output_dir, exist_ok=True)
-scene = bpy.context.scene
 
 try:
     scene.render.engine = '{engine_type}'
 except:
     scene.render.engine = 'BLENDER_EEVEE'
 
-scene.render.resolution_x = 1920
+scene.render.resolution_x = 1080
 scene.render.resolution_y = 1080
-scene.render.resolution_percentage = 100
-scene.render.fps = {fps}
-scene.frame_end = {frame_end}
+scene.render.image_settings.file_format = '{file_format}'
 
-if 'CYCLES' in scene.render.engine:
-    scene.cycles.device = 'GPU'
-    scene.cycles.samples = {samples}
-    scene.cycles.use_denoising = True
-    prefs = bpy.context.preferences
-    cprefs = prefs.addons['cycles'].preferences
-    cprefs.refresh_devices()
-    devices = cprefs.get_devices_for_type(compute_device_type='OPTIX') or cprefs.get_devices_for_type(compute_device_type='CUDA')
-    if devices:
-        for device in devices: device.use = True
-        print(f"Enabled GPU Rendering")
+# --- FILENAME FIX ---
+# Use the unique ID we generated in Python
+filename = '{unique_id}_render.png'
+scene.render.filepath = os.path.join(output_dir, filename)
+# --------------------
 
-scene.render.image_settings.file_format = 'OPEN_EXR' if '{quality}' != 'low' else 'PNG'
-scene.render.filepath = os.path.join(output_dir, 'frame_####')
-
-print(f"Rendering {{scene.frame_end}} frames...")
-bpy.ops.render.render(animation=True)
-print("Render complete!")
+print(f"Rendering to {{scene.render.filepath}}...")
+bpy.ops.render.render(animation=False, write_still=True)
 """
         return script
-
+    
     def _generate_scene_creation_script(self, description: str, assets: List[str], style: str) -> str:
         script = f"""
 import bpy

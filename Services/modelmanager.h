@@ -21,8 +21,7 @@ public:
 
 signals:
     void responseReady(const QString &taskId, const QString &role, const QString &response, const QString &model);
-    void requestFailed(const QString &role, const QString &error);
-    // Crucial: port to check, and code to run when it's alive
+    void requestFailed(const QString &taskId, const QString &role, const QString &errorString);    // Crucial: port to check, and code to run when it's alive
     void startHealthCheck(int port, std::function<void()> onReady);
 
 private slots:

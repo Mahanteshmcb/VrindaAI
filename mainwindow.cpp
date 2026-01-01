@@ -150,6 +150,10 @@ MainWindow::MainWindow(QWidget *parent)
     m_ffmpegController = new FfmpegController(basePath, this);
     m_networkManager = new QNetworkAccessManager(this);
 
+    // 2. CRITICAL LINKAGE (Prevents Phase 2 Crashes)
+    m_unrealController->setProjectStateController(m_projectStateController);
+    m_blenderController->setProjectStateController(m_projectStateController);
+
     // --- START: NEW Global Logger Initialization ---
     // These loggers are for agents that work outside of a project context, like 'Vrinda'.
     m_globalDbManager = new DatabaseManager(basePath, this);
@@ -627,18 +631,25 @@ MainWindow::MainWindow(QWidget *parent)
     });
 
     connect(ui->ResearcherSendButton, &QPushButton::clicked, this, [=]() {
+        if (!m_projectManager->isProjectLoaded()) {
+            ui->ResearcherChatArea->append("❌ Error: No project loaded. Researcher needs a project context.");
+            return;
+        }
+
         ui->ResearcherChatArea->setReadOnly(true);
         ui->ResearcherChatArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 
-        if (roleBuffers.contains("Researcher_task")) {
-            ui->ResearcherTextEdit->setPlainText(roleBuffers["Researcher_task"]);
-            roleBuffers.remove("Researcher_task");
+        // Get the Task ID from the buffer to prevent "Operation Canceled"
+        QString taskId = roleBuffers.value("Researcher_taskId", "");
+        QString taskContent = ui->ResearcherTextEdit->toPlainText().trimmed();
+
+        if (taskContent.isEmpty() && roleBuffers.contains("Researcher_task")) {
+            taskContent = roleBuffers["Researcher_task"];
         }
 
-        QStringList logs = m_dbManager->loadAgentLogs("Researcher");
-        ui->ResearcherChatArea->clear(); // Optional: clear the chat before loading history
-        ui->ResearcherChatArea->append(logs.join("\n"));
-        handleAgent("", "Researcher", ui->ResearcherTextEdit, ui->ResearcherChatArea);
+        if (!taskContent.isEmpty()) {
+            handleAgent(taskId, "Researcher", ui->ResearcherTextEdit, ui->ResearcherChatArea);
+        }
     });
 
     connect(ui->EngineSendButton, &QPushButton::clicked, this, [=]() {
@@ -677,23 +688,29 @@ void MainWindow::onMemoryQueryResult(const QList<MemoryQueryResult> &results)
 {
     if (m_pendingGoal.isEmpty()) return;
 
-    // Step 1: Create the project workspace.
+    // Step 1: Create and Standardize the Project Workspace
+    // This establishes the industry-standard folder structure: /Raw_Downloads, /Processed_FBX, /Renders, etc.
     QString newProjectPath = m_projectManager->createNewProject(m_pendingGoal);
     m_projectManager->loadProject(newProjectPath);
     m_activeProjectPath = newProjectPath;
     initializeServicesForProject(m_activeProjectPath);
 
-    // --- THIS IS THE FIX: Announce the new project name in the UI ---
+    // Load/Initialize the Unified Asset Manifest (project_assets.json)
+    // This allows all future agents to track generated files in a shared source of truth
+    m_projectStateController->loadManifest(m_activeProjectPath);
+
     QString newProjectName = QFileInfo(newProjectPath).baseName();
-    ui->AssistantChatArea->append(QString("✅ Project '%1' created successfully in your projects folder.").arg(newProjectName));
+    ui->AssistantChatArea->append(QString("✅ Project '%1' created with industry-standard folder structure.").arg(newProjectName));
 
 
-    // Step 2: Build the prompt for the Planner agent
+    // Step 2: Build the prompt for the Planner agent with Context Learning
+    // We use the Assistant to query the Vector Database for existing project context
     QString plannerPrompt = "PRIMARY GOAL:\n";
     plannerPrompt += m_pendingGoal + "\n";
 
     QStringList relevantMemories;
-    const double RELEVANCE_THRESHOLD = 1.0;
+    // ROADMAP REQUIREMENT: Inject historical context to learn from existing projects
+    const double RELEVANCE_THRESHOLD = 0.85; // High relevance only for AAA stability
 
     for (const MemoryQueryResult &res : results) {
         if (res.distance < RELEVANCE_THRESHOLD) {
@@ -702,22 +719,22 @@ void MainWindow::onMemoryQueryResult(const QList<MemoryQueryResult> &results)
     }
 
     if (!relevantMemories.isEmpty()) {
-        ui->AssistantChatArea->append("✅ Found relevant memories. Adding them to the Planner's context.");
-        plannerPrompt += "\nREFERENCE MEMORIES (For context only, do not repeat these tasks):\n";
+        ui->AssistantChatArea->append("✅ Context learning complete. Injecting historical memories into Planner.");
+        plannerPrompt += "\n### HISTORICAL CONTEXT (Learn from previous project outcomes):\n";
         plannerPrompt += "- " + relevantMemories.join("\n- ");
     } else {
-        ui->AssistantChatArea->append("ℹ️ No sufficiently relevant memories found.");
+        ui->AssistantChatArea->append("ℹ️ Research complete. No highly relevant historical context found.");
     }
     plannerPrompt += "\n[END GOAL]";
 
-    // Step 3: Send the prompt to the Planner agent
-    ui->AssistantChatArea->append("[System] Goal sent to Planner agent for initial breakdown...");
+    // Step 3: Send the goal with learned context to the Planner agent
+    ui->AssistantChatArea->append("[System] Goal and context sent to Planner for initial automated breakdown...");
     QTextEdit* plannerInput = roleToInputBox.value("Planner");
     if (plannerInput) {
         plannerInput->setPlainText(plannerPrompt);
         handleAgent("", "Planner", plannerInput, roleToChatBox.value("Planner"));
     } else {
-        qDebug() << "❌ UI for Planner agent not found!";
+        qDebug() << "❌ ERROR: UI for Planner agent not found!";
     }
 
     m_pendingGoal.clear();
@@ -841,32 +858,56 @@ void MainWindow::handleAgent(const QString &taskId, const QString &role, QTextEd
     m_modelManager->sendRequest(taskId, role, finalPrompt);
 }
 
-void MainWindow::onLlamaError(const QString &role, const QString &errorString)
+void MainWindow::onLlamaError(const QString &taskId, const QString &role, const QString &errorString)
 {
     QTextEdit* chatBox = roleToChatBox.value(role, nullptr);
     if (chatBox) {
-        chatBox->append("❌ Network request failed for role " + role + ": " + errorString);
+        chatBox->append("<span style='color:#e74c3c;'>❌ Network Error [" + role + "]: " + errorString + "</span>");
     }
-    qDebug() << "MODELMANAGER Error for role" << role << ":" << errorString;
+    
+    qDebug() << "MODELMANAGER Error | Role:" << role << "| Task:" << taskId << "| Msg:" << errorString;
+
+    // --- PHASE 5: AUTOMATED RECOVERY LOGIC ---
+    // If the server was swapping and the request hit a closed port, we retry instead of failing.
+    if (errorString.contains("refused") || errorString.contains("canceled") || errorString.contains("closed")) {
+        ui->ManagerChatArea->append("🔄 <i>System: Connection lost during swap for " + role + ". Retrying task...</i>");
+        
+        // Wait 2 seconds for the llama-server to finish initializing
+        QTimer::singleShot(2000, this, [=]() {
+            // Re-trigger the agent using the saved buffer
+            if (roleBuffers.contains(role + "_task")) {
+                handleAgent(taskId, role, nullptr, chatBox);
+            }
+        });
+    } 
+    else {
+        // For actual logic errors or permanent failures, notify the workflow
+        if (m_projectWorkflow && !taskId.isEmpty()) {
+            m_projectWorkflow->taskFailed(taskId, "Network/Model Error: " + errorString);
+            
+            // Trigger the Corrector to see if it can optimize the plan
+            emit escalateToCorrector(taskId, errorString, m_projectWorkflow->getCurrentPlanState());
+        }
+    }
 }
 
 void MainWindow::onLlamaResponse(const QString &taskId, const QString &role, const QString &response, const QString &modelUsed)
 {
     qDebug() << "========================================";
     qDebug() << "DEBUG: onLlamaResponse triggered for ROLE:" << role << "TASK_ID:" << taskId;
+    
     QTextEdit* chatBox = roleToChatBox.value(role, nullptr);
     if (!chatBox) {
         qDebug() << "DEBUG: ERROR - Could not find chatBox for role:" << role;
         return;
     }
-    qDebug() << "DEBUG: Response text starts with:" << response.left(120);
-    qDebug() << "========================================";
 
     QString t = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
 
     if (response.isEmpty()) {
         chatBox->append("[" + t + "] ⚠️ " + role + " produced no output.");
-        m_projectWorkflow->taskFailed(taskId, "Agent produced an empty response.");
+        // Phase 5: Automatic feedback loop for empty responses 
+        if (m_projectWorkflow) m_projectWorkflow->taskFailed(taskId, "Empty response.");
         return;
     }
     chatBox->append("[" + t + "] 🧑 " + role + ": " + response);
@@ -874,116 +915,71 @@ void MainWindow::onLlamaResponse(const QString &taskId, const QString &role, con
     QString originalTask = roleBuffers.value(role + "_task", "[Task not found]");
     DatabaseManager* logger = (role == "Vrinda" || !m_projectManager->isProjectLoaded()) ? m_globalDbManager : m_dbManager;
 
+    // --- 1. SPECIALIZED AGENTS (Non-JSON or Global Logic) ---
     if (role == "Planner") {
-        // The Planner has returned a plain-text plan. Now, send it to the Manager for JSON formatting.
-        chatBox->append("[System] Plain-text plan received. Sending to Manager for JSON formatting...");
-        QString managerPrompt = "Please convert the following plan to the required JSON format:\n" + response;
-        QTextEdit* managerInput = new QTextEdit(managerPrompt, this);
-        handleAgent("", "Manager", managerInput, roleToChatBox["Manager"]);
+        chatBox->append("[System] Plan received. Sending to Manager for JSON formatting...");
+        QString managerPrompt = "Convert this plan to the standardized JSON format:\n" + response;
+        handleAgent("", "Manager", new QTextEdit(managerPrompt, this), roleToChatBox["Manager"]);
+        return; // Early exit as Planner doesn't return JSON payload
 
     } else if (role == "Manager") {
-        if (logger) logger->logTask(role, originalTask, response, "Plan Generated", "mistral-7B");
-        m_projectWorkflow->startWorkflowFromPlan(response); // This should now always work
+        if (logger) logger->logTask(role, originalTask, response, "Plan Generated", modelUsed);
+        m_projectWorkflow->startWorkflowFromPlan(response); 
+        return;
+
     } else if (role == "Corrector") {
-        if (logger) logger->logTask(role, originalTask, response, "Plan Corrected", "mistral-7B");
-        // The Corrector's response is a modification object.
+        if (logger) logger->logTask(role, originalTask, response, "Correction Generated", modelUsed);
         QJsonDocument doc = QJsonDocument::fromJson(response.toUtf8());
-        QJsonObject root = doc.object();
-        if (root.contains("modification")) {
-            m_projectWorkflow->applyPlanModification(root["modification"].toObject());
-        } else {
-            chatBox->append("❌ Corrector Error: JSON response was missing a 'modification' key.");
+        if (doc.object().contains("modification")) {
+            m_projectWorkflow->applyPlanModification(doc.object()["modification"].toObject());
         }
+        return;
+
     } else if (role == "Engine") {
-        if (logger) logger->logTask(role, originalTask, response, "Engine Command Sequence", "mistral-7B");
         QJsonDocument doc = QJsonDocument::fromJson(response.toUtf8());
-        if (doc.isNull() || !doc.isArray()) {
-            ui->EngineChatArea->append("❌ Engine Error: Received an invalid JSON response from AI (expected an array).");
-            m_projectWorkflow->taskFailed(taskId, "Engine agent returned malformed JSON.");
-        } else {
-            QJsonArray instructions = doc.array();
-            m_unrealController->executeInstructionSequence(m_activeProjectPath, instructions);
+        if (!doc.isNull() && doc.isArray()) {
+            m_unrealController->executeInstructionSequence(m_activeProjectPath, doc.array());
             m_projectWorkflow->taskFinished(taskId);
+        } else {
+            m_projectWorkflow->taskFailed(taskId, "Engine agent returned malformed JSON.");
         }
-    } else if (role == "Validator") {
-        if (logger) logger->logTask(role, originalTask, response, "Validation Complete", modelUsed);
+        return;
+    }
 
-        QJsonDocument doc = QJsonDocument::fromJson(response.toUtf8());
-        if (doc.isObject() && doc.object().contains("valid")) {
-            bool valid = doc.object()["valid"].toBool();
-            QString artifactId = doc.object()["artifact_id"].toString(); // The ID of the artifact being checked
+    // --- 2. WORKER AGENTS (JSON Status/Payload Logic) ---
+    QJsonDocument doc = QJsonDocument::fromJson(response.toUtf8());
+    if (doc.isNull() || !doc.isObject()) {
+        chatBox->append("❌ Agent Error: Invalid JSON from " + role);
+        if (m_projectWorkflow) m_projectWorkflow->taskFailed(taskId, "Malformed JSON.");
+        return;
+    }
 
-            if (valid) {
-                chatBox->append(QString("✅ Artifact %1 passed validation.").arg(artifactId));
-                m_projectWorkflow->taskFinished(taskId);
+    QJsonObject statusObj = doc.object();
+    QString status = statusObj.value("status").toString();
+    QString payload = statusObj.value("payload").isString() ? 
+                      statusObj.value("payload").toString() : 
+                      QJsonDocument(statusObj.value("payload").toObject()).toJson(QJsonDocument::Compact);
+
+    if (status == "success") {
+        if (role == "Designer" || role == "Modeling") {
+            // SAFETY GUARD: Ensure Blender controller is valid
+            if (m_blenderController) {
+                m_blenderController->executeAutoRig(taskId, payload, "basic_human");
             } else {
-                // --- FIX: Wrap QJsonArray in QJsonDocument before calling toJson() ---
-                QJsonArray errorsArray = doc.object()["errors"].toArray();
-                QString errors = QJsonDocument(errorsArray).toJson(QJsonDocument::Compact);
-
-                chatBox->append("❌ Artifact failed validation. Errors: " + errors);
-
-                // CRITICAL: Fail the workflow task so the Manager/Corrector can intervene.
-                m_projectWorkflow->taskFailed(taskId, "Artifact failed validation: " + errors);
+                chatBox->append("❌ System Error: Blender Controller not initialized.");
             }
+        } else if (role == "Editing") {
+            if (m_ffmpegController) m_ffmpegController->executeEditingCommand(taskId, payload);
         } else {
-            chatBox->append("❌ Validator Error: Invalid JSON response (expected 'valid' key).");
-            m_projectWorkflow->taskFailed(taskId, "Validator agent returned malformed JSON.");
+            saveAgentOutputToFile(taskId, role, payload);
+            if (m_projectWorkflow) m_projectWorkflow->taskFinished(taskId);
+        }
+    } else {
+        if (m_projectWorkflow) {
+            m_projectWorkflow->taskFailed(taskId, payload);
+            emit escalateToCorrector(taskId, payload, m_projectWorkflow->getCurrentPlanState());
         }
     }
-
-    else { // This is for Coder, Designer, Modeling, Texturing, Animation, etc.
-        QJsonDocument doc = QJsonDocument::fromJson(response.toUtf8());
-        if (doc.isNull() || !doc.isObject()) {
-            chatBox->append("❌ Agent Error: Received an invalid JSON response from " + role);
-            m_projectWorkflow->taskFailed(taskId, "Agent returned malformed JSON.");
-            return;
-        }
-
-        QJsonObject statusObj = doc.object();
-        QString status = statusObj.value("status").toString();
-        QJsonValue payloadValue = statusObj.value("payload");
-        QString payloadString;
-
-        if (payloadValue.isString()) {
-            payloadString = payloadValue.toString();
-        } else {
-            payloadString = QJsonDocument::fromVariant(payloadValue.toVariant()).toJson(QJsonDocument::Compact);
-        }
-
-        if (status == "success") {
-            if (logger) logger->logTask(role, originalTask, payloadString, "Task Succeeded", modelUsed);
-
-            // --- DELEGATE TO SPECIALIZED CONTROLLERS FOR HEAVY TASKS ---
-            if (role == "Modeling") {
-                // Modeling agent gives a script or command array for the ModelingController
-                m_modelingController->executeModelingCommand(taskId, payloadString);
-            } else if (role == "Texturing") {
-                // Texturing agent gives a description/command array for the TexturingController
-                m_texturingController->executeTexturingCommand(taskId, payloadString);
-            } else if (role == "Animation") {
-                // Animation agent gives a description/command array for the AnimationController
-                m_animationController->executeAnimationCommand(taskId, payloadString);
-            } else if (role == "Validator") {
-                // Validator agent provides the checklist/script; the controller executes the file/code checks
-                m_validatorController->executeValidationCommand(taskId, payloadString);
-            } else if (role == "Editing") { // <<< NEW DELEGATION FOR EDITING
-                // Editing agent gives a structured manifest for the FfmpegController
-                m_ffmpegController->executeEditingCommand(taskId, payloadString);
-            }
-            else {
-                // For Coder, Designer (UI/Docs), Researcher, Integrator, etc., save output to file
-                saveAgentOutputToFile(taskId, role, payloadString);
-            }
-
-        } else {
-            if (logger) logger->logTask(role, originalTask, payloadString, "Task Failed", modelUsed);
-            m_projectWorkflow->taskFailed(taskId, payloadString);
-        }
-    }
-
-    roleBuffers.remove(role + "_task");
-    roleBuffers.remove(role + "_taskId");
 }
 
 void MainWindow::saveAgentOutputToFile(const QString &taskId, const QString &role, const QString &payloadString)
@@ -995,139 +991,102 @@ void MainWindow::saveAgentOutputToFile(const QString &taskId, const QString &rol
         return;
     }
 
-    // --- NEW: Parse the payload from the agent ---
+    // --- 1. PARSE PAYLOAD ---
     QJsonDocument payloadDoc = QJsonDocument::fromJson(payloadString.toUtf8());
     if (!payloadDoc.isObject()) {
-        m_projectWorkflow->taskFailed(taskId, "Agent returned a success status, but the payload was not a valid JSON object.");
+        m_projectWorkflow->taskFailed(taskId, "Agent payload was not a valid JSON object.");
         return;
     }
+
     QJsonObject payloadObj = payloadDoc.object();
-    QString responseText = payloadObj.value("file_content").toString();
+    QString responseContent = payloadObj.value("file_content").toString();
     QJsonObject assetInfo = payloadObj.value("register_asset").toObject();
 
-    QString responseContent = responseText;
+    // --- 2. EXTRACT FILE METADATA ([FILETYPE] and [FILENAME]) ---
     QString fileExtension = ".txt";
-    QRegularExpression re("^\\[FILETYPE: (\\.[\\w]+)\\]\\n?");
-    auto match = re.match(responseContent);
+    QRegularExpression reType("^\\[FILETYPE: (\\.[\\w]+)\\]\\n?");
+    auto matchType = reType.match(responseContent);
+    if (matchType.hasMatch()) {
+        fileExtension = matchType.captured(1);
+        responseContent.remove(matchType.captured(0));
+    }
 
-    if (match.hasMatch()) {
-        fileExtension = match.captured(1);
-        responseContent.remove(match.captured(0));
+    QString specificFileName;
+    QRegularExpression reName("^\\[FILENAME: ([\\w\\.]+)\\]\\n?");
+    auto matchName = reName.match(responseContent);
+    if (matchName.hasMatch()) {
+        specificFileName = matchName.captured(1);
+        responseContent.remove(matchName.captured(0));
     }
 
     responseContent = responseContent.trimmed();
     if (responseContent.isEmpty()) {
-        chatBox->append("❌ " + role + " Error: Agent returned a success status but the payload was empty.");
-        m_projectWorkflow->taskFailed(taskId, "Agent returned empty payload.");
+        m_projectWorkflow->taskFailed(taskId, "Agent returned empty file content.");
         return;
     }
 
-    // NOTE: Multi-file creation does not yet support asset registration. This can be a future enhancement.
-    if (fileExtension == ".json") {
-        // Multi-file creation
-        QJsonDocument doc = QJsonDocument::fromJson(responseContent.toUtf8());
-        if (!doc.isArray()) {
-            chatBox->append("❌ " + role + " Error: Received invalid multi-file JSON format (expected an array).");
-            m_projectWorkflow->taskFailed(taskId, "Agent returned malformed multi-file JSON.");
-            return;
-        }
-        QJsonArray files = doc.array();
-        int successCount = 0;
-        for (const QJsonValue &value : files) {
-            QJsonObject fileObj = value.toObject();
-            if (fileObj.contains("path") && fileObj.contains("content")) {
-                QString relativePath = fileObj["path"].toString();
-                QString fullFilePath = m_activeProjectPath + "/" + relativePath;
-                QDir(QFileInfo(fullFilePath).path()).mkpath(".");
-                QFile outFile(fullFilePath);
-                if (outFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                    QTextStream out(&outFile);
-                    out << fileObj["content"].toString();
-                    outFile.close();
-                    chatBox->append("✅ Created file via JSON: " + relativePath);
-                    successCount++;
-                } else {
-                    chatBox->append("❌ Failed to create file via JSON: " + relativePath);
-                }
-            }
-        }
-        if (successCount > 0 && successCount == files.count()) {
-            m_projectWorkflow->taskFinished(taskId);
-        } else {
-            m_projectWorkflow->taskFailed(taskId, "One or more files failed to save in multi-file operation.");
-        }
+    // --- 3. DETERMINE TARGET DIRECTORY (PHASE 1 STANDARDIZATION) ---
+    QString subFolder;
+    if (role == "Designer" || role == "Modeling") {
+        subFolder = (fileExtension == ".py") ? "/scripts" : "/Raw_Downloads";
+    } else if (role == "Coder") {
+        subFolder = (fileExtension == ".html" || fileExtension == ".js") ? "/frontend" : "/backend";
+    } else if (role == "Researcher") {
+        subFolder = "/r&d";
     } else {
-        // Single-file creation
-        QString subFolder, specificFileName, finalFileName;
-        QRegularExpression fn_re("^\\[FILENAME: ([\\w\\.]+)\\]\\n?");
-        auto fn_match = fn_re.match(responseContent);
-        if (fn_match.hasMatch()) {
-            specificFileName = fn_match.captured(1);
-            responseContent.remove(fn_match.captured(0));
-        }
+        subFolder = "/docs";
+    }
 
-        if (role == "Designer") {
-            if (fileExtension == ".py") subFolder = "/scripts";
-            else if (fileExtension == ".qml" || fileExtension == ".ui") subFolder = "/ui";
-            else subFolder = "/docs";
-        } else if (role == "Coder") {
-            if (fileExtension == ".html" || fileExtension == ".css" || fileExtension == ".js") subFolder = "/frontend";
-            else subFolder = "/backend";
-        } else if (role == "Researcher") {
-            subFolder = "/r&d";
-        } else if (role == "Integrator") {
-            subFolder = "/";
-            if (specificFileName.isEmpty()) specificFileName = "README";
-        } else {
-            subFolder = "/docs";
-        }
+    // Generate filename if not provided
+    QString finalFileName = specificFileName;
+    if (finalFileName.isEmpty()) {
+        finalFileName = QString("task_%1_%2").arg(taskId, role.toLower());
+    }
 
-        if (!specificFileName.isEmpty()) {
-            QFileInfo fileInfo(specificFileName);
-            finalFileName = fileInfo.baseName();
-            if (fileExtension == ".txt" && !fileInfo.suffix().isEmpty()) {
-                fileExtension = "." + fileInfo.suffix();
+    QDir projectDir(m_activeProjectPath);
+    projectDir.mkpath(m_activeProjectPath + subFolder);
+    QString filePath = m_activeProjectPath + subFolder + "/" + finalFileName;
+    if (!filePath.endsWith(fileExtension)) filePath += fileExtension;
+
+    // --- 4. SAVE TO DISK ---
+    QFile outFile(filePath);
+    if (outFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outFile);
+        out << responseContent;
+        outFile.close();
+
+        QString relativeFilePath = QDir(m_activeProjectPath).relativeFilePath(filePath);
+        chatBox->append("✅ Saved output to: " + relativeFilePath);
+
+        // --- 5. ASSET REGISTRATION (PHASE 1 & 2 METADATA) ---
+        if (!assetInfo.isEmpty() || role == "Modeling" || role == "Designer") {
+            QString assetType = assetInfo.value("type").toString("MESH");
+            QString assetName = assetInfo.value("name").toString(finalFileName);
+            QString assetDesc = assetInfo.value("description").toString("Generated via AI Workflow.");
+
+            // Unified Manifest Registration
+            QString newAssetId = m_projectStateController->registerAsset(assetType, assetName, assetDesc, relativeFilePath);
+            chatBox->append(QString("✅ Registered as %1 in project_assets.json").arg(newAssetId));
+
+            // --- 6. AUTO-RIGGING TRIGGER (PHASE 2) ---
+            if ((role == "Modeling" || role == "Designer") && (fileExtension == ".fbx" || fileExtension == ".obj")) {
+                chatBox->append("🎬 Asset identified as 3D Mesh. Triggering Blender Auto-Rigger...");
+                m_blenderController->executeAutoRig(taskId, filePath, "basic_human");
+                // Note: taskFinished will be called by BlenderController's finished signal
+            } else {
+                m_projectWorkflow->taskFinished(taskId);
             }
         } else {
-            QString taskDescription = roleBuffers.value(role + "_task", "untitled");
-            QString goalSlug = taskDescription.toLower().replace(QRegularExpression(R"([^a-z0-9_])"), "_").left(30);
-            finalFileName = "task_" + taskId + "_" + goalSlug;
-        }
-
-        QDir projectDir(m_activeProjectPath);
-        projectDir.mkpath(subFolder);
-        QString filePath = m_activeProjectPath + subFolder + "/" + finalFileName + fileExtension;
-        QFile outFile(filePath);
-
-        if (outFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&outFile);
-            out << responseContent.trimmed();
-            outFile.close();
-            QString relativeFilePath = QDir(m_activeProjectPath).relativeFilePath(filePath);
-            chatBox->append("✅ Saved output to: " + relativeFilePath);
-
-            // --- NEW: Register the asset after saving ---
-            if (!assetInfo.isEmpty()) {
-                QString assetType = assetInfo.value("type").toString();
-                QString assetName = assetInfo.value("name").toString();
-                QString newAssetId = m_projectStateController->registerAsset(assetType, assetName, relativeFilePath);
-                chatBox->append(QString("✅ Asset registered as %1.").arg(newAssetId));
-            }
-
-            QString originalTask = roleBuffers.value(role + "_task", "[Task not found]");
-            QString projectName = QFileInfo(m_activeProjectPath).baseName();
-            QString memory = QString("In project '%1', the %2 agent successfully completed the task '%3' by creating the file '%4'.")
-                                 .arg(projectName, role, originalTask, relativeFilePath);
-            m_vectorDbManager->addMemory(memory);
-
-            if (role == "Designer" && fileExtension == ".py") {
-                m_blenderController->triggerScript(responseContent.trimmed());
-            }
             m_projectWorkflow->taskFinished(taskId);
-        } else {
-            chatBox->append("❌ Failed to save output to: " + QDir(m_activeProjectPath).relativeFilePath(filePath));
-            m_projectWorkflow->taskFailed(taskId, "Failed to write file to disk.");
         }
+
+        // --- 7. VECTOR DB MEMORY LOGGING ---
+        QString memory = QString("Project '%1': %2 agent created %3. Path: %4")
+                         .arg(QFileInfo(m_activeProjectPath).baseName(), role, finalFileName, relativeFilePath);
+        m_vectorDbManager->addMemory(memory);
+
+    } else {
+        m_projectWorkflow->taskFailed(taskId, "System could not write to project directory.");
     }
 }
 
@@ -1148,40 +1107,30 @@ void MainWindow::onAssignTask(const QString &taskId, const QString &role, const 
     QString finalTaskDescription = task;
     QString contextToInject;
 
-    // Regex to find asset IDs like "MODEL_001", "CODE_012", etc.
-    QRegularExpression assetRegex("([A-Z_]+_\\d{3})");
-    auto it = assetRegex.globalMatch(task);
+    // CRITICAL FIX: Ensure project state controller exists before resolving IDs
+    if (m_projectStateController) {
+        QRegularExpression assetRegex("([A-Z_]+_\\d{3})");
+        auto it = assetRegex.globalMatch(task);
 
-    while (it.hasNext()) {
-        auto match = it.next();
-        QString assetId = match.captured(1);
-        QString assetPath = m_projectStateController->getAssetPath(assetId);
+        while (it.hasNext()) {
+            auto match = it.next();
+            QString assetId = match.captured(1);
+            QString assetPath = m_projectStateController->getAssetPath(assetId);
 
-        if (!assetPath.isEmpty()) {
-            qDebug() << "Resolving asset ID" << assetId << "to path" << assetPath;
-            // Add the file content of the resolved asset as context for the next agent
-            contextToInject += QString("[CONTEXT: %1]\n").arg(assetPath);
-        } else {
-            qDebug() << "Warning: Could not resolve asset ID" << assetId;
+            if (!assetPath.isEmpty()) {
+                qDebug() << "Resolving asset ID" << assetId << "to path" << assetPath;
+                contextToInject += QString("[CONTEXT: %1]\n").arg(assetPath);
+            }
         }
     }
 
-    // Prepend the resolved asset contexts to the task description
     if (!contextToInject.isEmpty()) {
         finalTaskDescription = contextToInject + finalTaskDescription;
     }
-    // --- END: NEW ASSET ID RESOLUTION LOGIC ---
 
     if (roleToInputBox.contains(role)) {
         QTextEdit *targetInput = roleToInputBox[role];
         targetInput->setPlainText(finalTaskDescription);
-        // --- SPECIAL CASE: VALIDATOR INJECTION ---
-        if (role == "Validator") {
-            // The Validator task must be handled immediately by the ValidatorController
-            // which will perform the QA steps based on the task description (which contains asset IDs).
-            // We do NOT send the Validator task to the LLM immediately. The LLM only generates the QA checklist.
-            // For now, let's keep the LLM as the first step for simplicity, assuming its prompt is the QA spec.
-        }
         handleAgent(taskId, role, targetInput, roleToChatBox[role]);
     }
 }

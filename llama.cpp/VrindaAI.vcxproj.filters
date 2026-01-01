@@ -1,0 +1,192 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\mocs_compilation_Debug.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\mainwindow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\databasemanager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\modelmanager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\reportgenerator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\projectmanager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\vectordatabasemanager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\projectworkflow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\blendercontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\unrealcontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\compilercontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\projectstatecontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\modelingcontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\texturingcontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\animationcontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\validatorcontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\llamaservercontroller.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Utils\promptsanitizer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Utils\codescanner.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\.qt\rcc\qrc_VrindaAI_translations.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\mocs_compilation_Release.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\mocs_compilation_MinSizeRel.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\mocs_compilation_RelWithDebInfo.cpp">
+      <Filter>Source Files\Generated</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\mainwindow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\databasemanager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\modelmanager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\reportgenerator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\projectmanager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Services\vectordatabasemanager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\projectworkflow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\blendercontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\unrealcontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\compilercontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\projectstatecontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\modelingcontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\texturingcontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\animationcontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\validatorcontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Controllers\llamaservercontroller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Utils\promptsanitizer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\Utils\codescanner.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\VrindaAI_sa_IN.ts" />
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\.qt\rcc\VrindaAI_translations.qrc" />
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_sa_IN.qm" />
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\include_Debug\ui_mainwindow.h">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\include_Release\ui_mainwindow.h">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\include_MinSizeRel\ui_mainwindow.h">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\include_RelWithDebInfo\ui_mainwindow.h">
+      <Filter>Source Files\Generated</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\CMakeFiles\25fe9708398ec7e6c69bfcab503f8671\VrindaAI_sa_IN.qm.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\CMakeFiles\a4e8b9576583efe08fae594918c6d138\qrc_VrindaAI_translations.cpp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\CMakeFiles\c7c4807f3f729ec438919824e04121ac\autouic_(CONFIG).stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\mainwindow.ui" />
+    <None Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\styles\darktheme.qss" />
+    <None Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\db\tasks.sqlite" />
+    <None Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\memory_service.py" />
+    <None Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\autouic_Debug.stamp">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\autouic_Release.stamp">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\autouic_MinSizeRel.stamp">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+    <None Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\VrindaAI_autogen\autouic_RelWithDebInfo.stamp">
+      <Filter>Source Files\Generated</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{83B91FA7-8D1A-3EFC-9755-C51B8DF15ACF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{31852B6A-F504-3161-A24D-4D36ECFEDA03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{B94019EB-3619-35CA-A0DD-D4C748CF371B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Generated">
+      <UniqueIdentifier>{874C4AD8-2972-302E-AE68-0BAA0A71E9AD}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

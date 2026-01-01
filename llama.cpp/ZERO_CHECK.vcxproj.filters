@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\Mahantesh\DevelopmentProjects\VrindaAI\VrindaAI\llama.cpp\CMakeFiles\7d24f50d147343cb7d87b58c54389029\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{83B91FA7-8D1A-3EFC-9755-C51B8DF15ACF}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
 
 ProjectStateController::ProjectStateController(QObject *parent)
     : QObject(parent), m_lastAssetId(0)
@@ -12,23 +13,22 @@ ProjectStateController::ProjectStateController(QObject *parent)
 
 bool ProjectStateController::loadManifest(const QString &projectPath)
 {
-    m_manifestPath = projectPath + "/asset_manifest.json";
+    // ROADMAP FIX: Use project_assets.json as the unified source of truth 
+    m_manifestPath = projectPath + "/project_assets.json";
     QFile file(m_manifestPath);
 
     if (file.exists() && file.open(QIODevice::ReadOnly)) {
         m_manifest = QJsonDocument::fromJson(file.readAll()).object();
         file.close();
-        // Load the last used ID to continue the sequence
         m_lastAssetId = m_manifest.value("last_asset_id").toInt(0);
-        qDebug() << "✅ Asset manifest loaded for project:" << QFileInfo(projectPath).baseName();
+        qDebug() << "✅ Phase 1: Unified Asset Manifest loaded:" << QFileInfo(projectPath).baseName();
         return true;
     } else {
-        // If no manifest exists, create a new one
         m_manifest = QJsonObject();
         m_manifest["assets"] = QJsonArray();
         m_manifest["last_asset_id"] = 0;
         m_lastAssetId = 0;
-        qDebug() << "ℹ️ No manifest found. Creating a new one for the project.";
+        qDebug() << "ℹ️ Phase 1: Initializing new project_assets.json";
         return saveManifest();
     }
 }
@@ -38,23 +38,26 @@ bool ProjectStateController::saveManifest()
     QFile file(m_manifestPath);
     if (file.open(QIODevice::WriteOnly)) {
         m_manifest["last_asset_id"] = m_lastAssetId;
+        m_manifest["last_updated"] = QDateTime::currentDateTime().toString(Qt::ISODate);
         file.write(QJsonDocument(m_manifest).toJson(QJsonDocument::Indented));
         file.close();
         return true;
     }
-    qDebug() << "❌ Failed to save asset manifest to:" << m_manifestPath;
     return false;
 }
 
-QString ProjectStateController::registerAsset(const QString &assetType, const QString &assetName, const QString &relativePath)
+
+QString ProjectStateController::registerAsset(const QString &assetType, const QString &assetName, const QString &assetDescription, const QString &relativePath)
 {
     m_lastAssetId++;
+    // Generates IDs like MESH_001, RENDER_002
     QString newId = assetType.toUpper() + "_" + QString::number(m_lastAssetId).rightJustified(3, '0');
 
     QJsonObject newAsset;
     newAsset["id"] = newId;
     newAsset["type"] = assetType.toLower();
     newAsset["name"] = assetName;
+    newAsset["description"] = assetDescription; // Added for future fetching/using
     newAsset["path"] = relativePath;
     newAsset["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);
 
@@ -63,9 +66,10 @@ QString ProjectStateController::registerAsset(const QString &assetType, const QS
     m_manifest["assets"] = assets;
 
     saveManifest();
-    qDebug() << "✅ Asset Registered:" << newId << "(" << relativePath << ")";
+    qDebug() << "✅ Asset Manifest Updated with Metadata:" << newId;
     return newId;
 }
+
 
 QString ProjectStateController::getAssetPath(const QString &assetId) const
 {
