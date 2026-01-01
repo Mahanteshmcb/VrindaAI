@@ -1,23 +1,26 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-// Core Qt
 #include <QMainWindow>
 #include <QMap>
 #include <QNetworkAccessManager>
+#include <QStackedWidget>
+#include <QPushButton>
+#include <QTextEdit>
 
-// All modularized components
+// --- CORE SERVICES ---
 #include "Services/modelmanager.h"
 #include "Services/databasemanager.h"
 #include "Services/reportgenerator.h"
-#include "Services/projectmanager.h"
+#include "Services/projectmanager.h" 
+#include "Services/vectordatabasemanager.h"
+#include "Services/headlessexecutor.h"
+
+// --- CONTROLLERS ---
 #include "Controllers/blendercontroller.h"
 #include "Controllers/projectworkflow.h"
 #include "Controllers/unrealcontroller.h"
-#include "Utils/codescanner.h"
-#include "Utils/promptsanitizer.h"
 #include "Controllers/compilercontroller.h"
-#include "Services/vectordatabasemanager.h"
 #include "Controllers/projectstatecontroller.h"
 #include "Controllers/modelingcontroller.h"
 #include "Controllers/texturingcontroller.h"
@@ -26,8 +29,9 @@
 #include "Controllers/llamaservercontroller.h"
 #include "Controllers/ffmpegcontroller.h"
 
-class QTextEdit;
-class QPushButton;
+// Utils
+#include "Utils/codescanner.h"
+#include "Utils/promptsanitizer.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -41,75 +45,49 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-signals:
-    void escalateToCorrector(const QString &taskId, const QString &error, const QJsonObject &currentPlan);
-
 private slots:
-    void handleAgent(const QString &taskId, const QString &role, QTextEdit *inputBox, QTextEdit *chatBox);
-    void routeTaskToManager(const QString &response, bool isIntervention = false);
-    void createDefaultEnginePrompt();
-    void onLlamaResponse(const QString &taskId, const QString &role, const QString &response, const QString &modelUsed);
-    void onLlamaError(const QString &taskId, const QString &role, const QString &errorString);
-    void onAssignTask(const QString &taskId, const QString &role, const QString &task);
-    void initializeServicesForProject(const QString &projectPath);
-    void onManualIntervention(const QString &instructions);
-    void on_setUnrealPathButton_clicked();
-    void onCompilationFinished(bool success, const QString &summary);
-    void onMemoryQueryResult(const QList<MemoryQueryResult> &results);
-    void saveAgentOutputToFile(const QString &taskId, const QString &role, const QString &responseText);
-    void onEscalateToCorrector(const QString &failedTaskId, const QString &reason, const QJsonArray &currentPlanState);
+    // UI Navigation Slots
+    void on_btnPageDashboard_clicked();
+    void on_btnPageConsole_clicked();
+    void on_btnPageSettings_clicked();
+    
+    // Core Action Slots
+    void on_btnLaunch_clicked();
+    
+    // Neural Link Feedback
+    void onNeuralLinkFinished(const QJsonObject &result);
+    void onExecutionStarted(const QString &command);
+    void onExecutionError(const QString &error);
 
 private:
     Ui::MainWindow *ui;
 
-    ProjectManager *m_projectManager;
-    DatabaseManager *m_dbManager;
-    ReportGenerator *m_reportGenerator;
-    BlenderController *m_blenderController;
-    ModelManager *m_modelManager;
-    ProjectWorkflow *m_projectWorkflow;
-    UnrealController *m_unrealController;
-    CodeScanner *m_codeScanner;
-    PromptSanitizer *m_promptSanitizer;
-    CompilerController *m_compilerController;
-    VectorDatabaseManager *m_vectorDbManager;
-    ProjectStateController *m_projectStateController;
-    ModelingController *m_modelingController;
-    TexturingController *m_texturingController;
-    AnimationController *m_animationController;
-    ValidatorController *m_validatorController;
+    // --- MANAGERS & CONTROLLERS ---
+    HeadlessExecutor *m_headlessExecutor; 
+    
+    // --- FIX: Added Missing Declaration ---
+    ProjectManager *m_projectManager; 
+    
     LlamaServerController *m_llamaServerController;
-    FfmpegController *m_ffmpegController;
-
-
-    QNetworkAccessManager* m_networkManager;
+    ProjectStateController *m_projectStateController;
+    VectorDatabaseManager *m_vectorDbManager;
     DatabaseManager *m_globalDbManager;
     ReportGenerator *m_globalReportGenerator;
-
-    // Paths for LLaMA and the model.
-    QString basePath = "C:/Users/Mahantesh/DevelopmentProjects/VrindaAI/VrindaAI";
-    QString llamaPath = basePath + "/llama.cpp/build/bin/Release/llama-server.exe";
-    QString modelPath = basePath + "/llama.cpp/build/bin/Release/mistral.gguf";
-
-    QString m_unrealScriptQueue; // Stores python commands for batch execution
-
-    QString m_activeProjectPath;
-
-    // Stores the current project goal for use by multiple agents.
-    QString projectGoal;
-    // Add this to temporarily store the user's goal
-    QString m_pendingGoal;
-
-    // Maps roles to their corresponding UI elements.
+    
+    // Engine Controllers
+    UnrealController *m_unrealController;
+    BlenderController *m_blenderController;
+    FfmpegController *m_ffmpegController;
+    
+    // --- LEGACY MAPS ---
     QMap<QString, QTextEdit*> roleToChatBox;
-    QMap<QString, QTextEdit*> roleToInputBox;
+    QMap<QString, QTextEdit*> roleToInputBox; 
 
-    // Buffers to hold streaming output from QProcess.
-    QMap<QString, QString> outputBuffers;
-
-    // Stores transient data for the multi-agent pipeline.
-    QMap<QString, QString> roleBuffers;
-
+    // Helpers
+    void setupConnections();
+    void setupControllers();
+    void initializeNeuralLink();
+    void logToConsole(const QString &sender, const QString &message);
 };
 
 #endif // MAINWINDOW_H

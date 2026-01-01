@@ -7,6 +7,8 @@
 #include <QDir>
 #include <QThread>
 #include <QDateTime>
+#include <QCoreApplication> // Added for Universal Link
+#include <QProcess>         // Added for Universal Link
 #include <iostream>
 #include <fstream>
 #include <cstring>
@@ -34,13 +36,15 @@ void logMessage(const std::string& message) {
     }
 }
 
-HeadlessExecutor::HeadlessExecutor() : m_isRunning(false) {
+HeadlessExecutor::HeadlessExecutor(QObject *parent) : QObject(parent), m_isRunning(false) {
     // Constructor
 }
 
 HeadlessExecutor::~HeadlessExecutor() {
     // Destructor
 }
+
+// --- EXISTING METHODS PRESERVED BELOW ---
 
 int HeadlessExecutor::executeJobFile(const QString& jobFilePath) {
     logMessage("Executing job file: " + jobFilePath.toStdString());
@@ -177,7 +181,7 @@ int HeadlessExecutor::executeWorkflow(const QString& workflowFilePath) {
 }
 
 int HeadlessExecutor::generateAndExecuteJob(const QString& taskDescription,
-                                           const QString& outputPath) {
+                                            const QString& outputPath) {
     std::cout << "[HEADLESS] Generating job from description: " << taskDescription.toStdString() << std::endl;
     std::cout << "[HEADLESS] Output path: " << outputPath.toStdString() << std::endl;
     
@@ -203,3 +207,121 @@ void HeadlessExecutor::onJobError(const QString& errorMessage) {
     m_isRunning = false;
 }
 
+// --- NEW PHASE 2: UNIVERSAL NEURAL LINK IMPLEMENTATION ---
+
+void HeadlessExecutor::executeUniversalTask(const QString &method, const QJsonObject &params)
+{
+    qDebug() << "🧠 Neural Link: Preparing to execute" << method;
+
+    // 1. Construct the JSON Payload
+    QJsonObject payload;
+    payload["method"] = method;
+    payload["params"] = params;
+
+    QJsonDocument doc(payload);
+    QString jsonString = doc.toJson(QJsonDocument::Compact);
+
+    // 2. Locate the Python CLI
+    // Look in standard deployment locations
+    QString scriptPath = QCoreApplication::applicationDirPath() + "/src/vrindaai_cli.py";
+    
+    // Fallback for development environment
+    if (!QFile::exists(scriptPath)) {
+        // Try looking up two levels (standard Qt Creator build dir structure)
+        scriptPath = QCoreApplication::applicationDirPath() + "/../../VrindaAI/vrindaai_cli.py";
+    }
+    
+    if (!QFile::exists(scriptPath)) {
+        scriptPath = "vrindaai_cli.py"; // Last resort
+    }
+
+    // 3. Configure Python Command
+    QString program = "python"; 
+    QStringList arguments;
+    
+    // QProcess handles quoting automatically
+    arguments << scriptPath << "--json" << jsonString;
+
+    qDebug() << "🚀 Launching Python Script:" << scriptPath;
+    
+    // 4. Run the Process
+    runProcess(program, arguments);
+}
+
+void HeadlessExecutor::runProcess(const QString &program, const QStringList &arguments)
+{
+    QProcess *process = new QProcess(this);
+    
+    // --- FIX: Use SeparateChannels so Logs (Stderr) don't corrupt JSON (Stdout) ---
+    process->setProcessChannelMode(QProcess::SeparateChannels);
+
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, &HeadlessExecutor::onProcessFinished);
+    
+    connect(process, &QProcess::errorOccurred,
+            this, &HeadlessExecutor::onProcessError);
+
+    // Optional: Connect readyReadStandardError if you want to stream logs in real-time
+    // connect(process, &QProcess::readyReadStandardError, [process](){
+    //     qDebug() << "PY_LOG:" << process->readAllStandardError();
+    // });
+
+    emit executionStarted(program + " " + arguments.join(" "));
+    
+    process->start(program, arguments);
+}
+
+void HeadlessExecutor::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    QProcess *process = qobject_cast<QProcess*>(sender());
+    if (!process) return;
+
+    // --- FIX: Read ONLY Standard Output for JSON ---
+    QString stdOut = QString::fromUtf8(process->readAllStandardOutput()).trimmed();
+    QString stdErr = QString::fromUtf8(process->readAllStandardError()).trimmed();
+
+    if (!stdErr.isEmpty()) {
+        qDebug() << "⚠️ Python Logs:" << stdErr;
+    }
+    
+    if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+        qDebug() << "✅ Python Task Finished";
+        
+        // Parse the JSON result from Standard Output
+        QJsonDocument responseDoc = QJsonDocument::fromJson(stdOut.toUtf8());
+        QJsonObject responseObj = responseDoc.object();
+        
+        if (!responseObj.isEmpty()) {
+            emit neuralLinkFinished(responseObj);
+        } else {
+            // Fallback: If output is empty, maybe the error is in stdErr
+            QJsonObject error;
+            error["status"] = "error";
+            error["message"] = "Empty response from Python";
+            error["error"] = stdErr; // Pass the log as the error detail
+            emit neuralLinkFinished(error);
+        }
+    } else {
+        qDebug() << "❌ Python Task Failed (Code" << exitCode << ")";
+        QJsonObject error;
+        error["status"] = "error";
+        error["message"] = "Process crashed";
+        error["error"] = stdErr;
+        emit neuralLinkFinished(error);
+    }
+
+    process->deleteLater();
+}
+
+void HeadlessExecutor::onProcessError(QProcess::ProcessError error)
+{
+    QProcess *process = qobject_cast<QProcess*>(sender());
+    QString errorMsg = "Unknown error";
+    
+    if (process) {
+        errorMsg = process->errorString();
+    }
+    
+    qDebug() << "⚠️ Process Error:" << errorMsg;
+    emit executionError(errorMsg);
+}

@@ -27,7 +27,7 @@ if sys.platform == "win32":
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from core.input_processor import InputProcessor, InputType
-from core.orchestrator import Orchestrator, ExecutionMode
+from core.orchestrator import Orchestrator, ExecutionMode, create_orchestrator
 
 
 def setup_logging(verbose: bool = False) -> logging.Logger:
@@ -39,6 +39,7 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     log_dir.mkdir(parents=True, exist_ok=True)
     
     # Configure logging with UTF-8 encoding for file handler
+    # CRITICAL FIX: Direct stream handler to stderr to keep stdout clean for JSON
     logging.basicConfig(
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -64,17 +65,8 @@ Examples:
   # Create cinematic video from text prompt
   python vrindaai_cli.py --prompt "Create a sci-fi cinematic showing a spaceship"
   
-  # Create from JSON configuration
-  python vrindaai_cli.py --config config.json
-  
-  # Create from scene description
-  python vrindaai_cli.py --scene scene.json
-  
-  # Create game from prompt
-  python vrindaai_cli.py --prompt "Create an action game" --engine unreal
-  
-  # Dry run - prepare without executing
-  python vrindaai_cli.py --prompt "..." --dry-run
+  # C++ Integration (Universal Link)
+  python vrindaai_cli.py --json '{"method": "create_project", "params": {"name": "Test", "prompt": "..."}}'
         """
     )
     
@@ -106,7 +98,7 @@ Examples:
     # Engine selection
     parser.add_argument(
         "--engine", "-e",
-        choices=["blender", "unreal", "davinci"],
+        choices=["blender", "unreal", "davinci", "cad"], # Added 'cad' option if supported
         default="blender",
         help="Target engine (default: blender)"
     )
@@ -171,11 +163,39 @@ Examples:
     
     # Setup logging
     logger = setup_logging(args.verbose)
-    logger.info("=" * 60)
-    logger.info("VrindaAI - Autonomous Content Creator")
-    logger.info("=" * 60)
     
     try:
+        # --- INTERCEPTION LOGIC FOR C++ UNIVERSAL LINK ---
+        if args.json:
+            try:
+                # Handle potential double-escaping from shell
+                input_str = args.json.strip()
+                if input_str.startswith("'") and input_str.endswith("'"):
+                    input_str = input_str[1:-1]
+
+                json_data = json.loads(input_str)
+                # Check if this is a "method" call (RPC style) vs just a config object
+                if "method" in json_data:
+                    logger.info("🔗 Received Universal Link Request from C++")
+                    orchestrator = create_orchestrator({"output_dir": args.output})
+                    response = orchestrator.process_request(input_str)
+                    
+                    # Print ONLY the JSON response to stdout
+                    sys.stdout.write(response)
+                    sys.stdout.flush()
+                    return 0
+            except json.JSONDecodeError as e:
+                # If invalid JSON, let it fall through or log error. 
+                # Ideally, if --json is passed but malformed, we should error out or 
+                # let InputProcessor handle it if it expects a config object.
+                logger.warning(f"Initial JSON parse failed (might be a config object): {e}")
+                pass
+        # -------------------------------------------------
+
+        logger.info("=" * 60)
+        logger.info("VrindaAI - Autonomous Content Creator")
+        logger.info("=" * 60)
+
         # Step 1: Process input
         logger.info("\n📋 Step 1: Processing input...")
         
@@ -204,7 +224,9 @@ Examples:
                      input_type = InputType.SCENE_DESCRIPTION
             except json.JSONDecodeError as e:
                 logger.error(f"Invalid JSON provided: {e}")
-                print(json.dumps({"status": "error", "error": "Invalid JSON input"}))
+                # Print clean JSON error to stdout
+                sys.stdout.write(json.dumps({"status": "error", "error": "Invalid JSON input"}))
+                sys.stdout.flush()
                 return 1
         
         # Process input
@@ -222,18 +244,17 @@ Examples:
         # Validate
         if not input_processor.validate_task_spec(task_spec):
             logger.error("❌ Invalid task specification")
-            print(json.dumps({"status": "failed", "error": "Invalid task specification"}))
+            sys.stdout.write(json.dumps({"status": "failed", "error": "Invalid task specification"}))
+            sys.stdout.flush()
             return 1
         
         logger.info(f"✅ Input processed successfully")
         logger.info(f"   Engine: {task_spec.get('engine')}")
-        logger.info(f"   Type: {task_spec.get('input_type')}")
-        logger.info(f"   Quality: {task_spec.get('quality')}")
         
         # Step 2: Create orchestrator and execute
         logger.info("\n🚀 Step 2: Preparing workflow...")
         
-        orchestrator = Orchestrator({
+        orchestrator = create_orchestrator({
             "output_dir": args.output,
             "verbose": args.verbose
         })
@@ -255,21 +276,11 @@ Examples:
         logger.info("=" * 60)
         
         logger.info(f"Status: {result['status']}")
-        logger.info(f"Workflow ID: {result['workflow_id']}")
-        logger.info(f"Engine: {result['engine']}")
         
-        if result.get('stages'):
-            logger.info("\nStages:")
-            for stage in result['stages']:
-                logger.info(f"  • {stage['name']}: {stage['status']}")
-        
-        if result.get('output'):
-            logger.info("\nOutputs:")
-            for key, value in result['output'].items():
-                logger.info(f"  • {key}: {value}")
-        
-        # Print clean JSON to stdout for C++ integration
-        print(json.dumps(result, indent=2, default=str))
+        # Print clean JSON to stdout for C++ integration (legacy mode output)
+        # Using sys.stdout.write ensures no extra newlines or formatting issues
+        sys.stdout.write(json.dumps(result, indent=2, default=str))
+        sys.stdout.flush()
 
         if result['status'] == "failed":
             logger.error(f"\n❌ Error: {result.get('error')}")
@@ -278,7 +289,15 @@ Examples:
             logger.info("\n✅ Workflow completed successfully!")
             
             # Save report
-            report_path = Path(args.output) / "logs" / f"workflow_{result['workflow_id']}.json"
+            # Ensure output directory exists before writing report
+            output_path = Path(args.output)
+            output_path.mkdir(parents=True, exist_ok=True)
+            log_dir = output_path / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            
+            report_path = log_dir / f"workflow_{result.get('workflow_id', 'unknown')}.json"
+            # Note: We don't write the file here if the orchestrator/logger already did it, 
+            # but logging the path is good.
             logger.info(f"\nExecution report saved to: {report_path}")
         
         return 0
@@ -289,7 +308,10 @@ Examples:
     
     except Exception as e:
         logger.exception(f"❌ Fatal error: {e}")
-        print(json.dumps({"status": "failed", "error": str(e)}))
+        # Ensure a JSON error response is printed to stdout so C++ captures it
+        error_json = json.dumps({"status": "failed", "error": str(e)})
+        sys.stdout.write(error_json)
+        sys.stdout.flush()
         return 1
 
 
